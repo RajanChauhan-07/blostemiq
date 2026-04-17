@@ -1,116 +1,133 @@
-# BlostemIQ — Monorepo
+# BlostemIQ
 
-> B2B SaaS Intelligence Platform for Fintech Infrastructure  
-> Real-time partner health monitoring · AI churn prediction · Compliance-aware outreach
+> **B2B SaaS Intelligence Platform for Fintech Infrastructure**
+> Real-time partner health · AI churn prediction · Compliance-aware outreach · ElevenLabs voice briefings
 
 ---
 
-## 🏗️ Architecture
+## 📁 Project Structure
 
 ```
 blostemiq/
-├── apps/
-│   ├── frontend/              # Next.js 14 (App Router, TypeScript)
-│   ├── auth-service/          # Node.js + Express — JWT, OAuth, org provisioning
-│   ├── partner-service/       # Node.js + REST — Partner CRUD, event ingestion
-│   ├── analytics-service/     # Python + FastAPI — Metrics, cohorts, funnels
-│   ├── ml-serving/            # Python + FastAPI — SageMaker inference, SHAP
-│   ├── outreach-service/      # Python + FastAPI — Claude AI email generation
-│   ├── notification-service/  # Node.js + WebSocket — Real-time alerts
-│   ├── lead-scoring-service/  # Python + FastAPI — XGBoost lead scoring
-│   ├── search-service/        # Node.js + OpenSearch — Full-text + vector search
-│   ├── report-engine/         # Python + WeasyPrint — PDF reports, SES delivery
-│   └── billing-service/       # Node.js + Stripe — Subscriptions, webhooks
-├── infra/
-│   └── terraform/             # All AWS infrastructure as code
-├── ml/
-│   ├── models/                # XGBoost churn + lead scorer + outreach classifier
-│   ├── pipelines/             # Feature engineering, retrain DAGs
-│   └── data/                  # Synthetic datasets (DVC versioned)
-├── k8s/
-│   └── helm/                  # Helm charts for EKS deployments
-├── scripts/
-│   ├── init-db.sql            # Postgres schema
-│   └── localstack-init.sh     # Local AWS resource setup
-└── .github/
-    └── workflows/             # CI/CD pipelines
+│
+├── 🖥️  frontend/                     # Next.js 14 — The web app judges see
+│   ├── app/                          # App Router pages
+│   │   ├── (auth)/                   # Login, signup, org creation
+│   │   ├── dashboard/                # Main partner health dashboard
+│   │   ├── partners/                 # Partner list + detail pages
+│   │   ├── outreach/                 # AI email composer
+│   │   ├── analytics/                # Cohort heatmaps, funnels
+│   │   └── settings/                 # Org settings, team, billing
+│   ├── components/                   # Reusable UI components
+│   ├── lib/                          # API clients, hooks, utilities
+│   └── styles/                       # Global CSS + design tokens
+│
+├── 🔧  backend/                      # All backend microservices
+│   ├── auth-service/                 # Node.js — JWT, OAuth, org provisioning
+│   ├── partner-service/              # Node.js — Partner CRUD, event ingestion
+│   ├── notification-service/         # Node.js — WebSocket, real-time alerts
+│   ├── billing-service/              # Node.js — Stripe subscriptions
+│   ├── search-service/               # Node.js — OpenSearch full-text + vector
+│   └── python/
+│       ├── analytics-service/        # FastAPI — Metrics, cohorts, funnels
+│       ├── ml-serving/               # FastAPI — SageMaker inference + SHAP
+│       ├── outreach-service/         # FastAPI — Claude AI email generation
+│       ├── lead-scoring-service/     # FastAPI — XGBoost lead scoring
+│       └── report-engine/            # Python — PDF reports, SES delivery
+│
+├── 🗄️  database/                     # Everything data-related
+│   ├── schemas/
+│   │   └── init-db.sql               # PostgreSQL schema (all 6 tables)
+│   ├── migrations/                   # Prisma migration files
+│   └── seeds/                        # Demo data (30 partners, 12mo history)
+│
+├── 🤖  ml/                           # Machine learning
+│   ├── models/
+│   │   ├── churn/                    # XGBoost churn predictor
+│   │   ├── lead-scoring/             # XGBoost lead scorer
+│   │   └── outreach-classifier/      # Template type classifier
+│   ├── pipelines/                    # Feature refresh + retrain DAGs
+│   └── data/                         # Synthetic datasets (DVC versioned)
+│
+├── ☁️  infra/
+│   └── terraform/
+│       ├── modules/
+│       │   ├── vpc/                  # Network foundation
+│       │   ├── eks/                  # Kubernetes cluster
+│       │   ├── rds/                  # PostgreSQL on AWS
+│       │   ├── elasticache/          # Redis on AWS
+│       │   ├── s3/                   # 4 storage buckets
+│       │   ├── ecr/                  # Container image registries
+│       │   ├── dynamodb/             # 3 event tables
+│       │   └── iam/                  # Roles, IRSA, GitHub OIDC
+│       └── environments/
+│           └── dev/                  # Dev environment (terraform apply here)
+│
+├── ⚙️  k8s/
+│   └── helm/                         # Helm charts for EKS deployments
+│
+├── 🔄  .github/
+│   └── workflows/
+│       └── ci.yml                    # CI/CD: test → build → push ECR → deploy EKS
+│
+├── 🛠️  scripts/
+│   ├── init-db.sql                   # Run once to setup Postgres schema
+│   ├── localstack-init.sh            # Boots fake AWS locally
+│   └── cost-control.sh               # Scale EKS up/down, check AWS spend
+│
+└── docker-compose.yml                # Starts EVERYTHING locally (1 command)
 ```
 
-## 🚀 Local Development
+---
 
-### Prerequisites
-- Docker Desktop
-- Node.js 20+
-- Python 3.11+
+## 🚀 Start Local Dev (1 Command)
 
-### Start Everything
 ```bash
-# Clone and setup
-git clone https://github.com/RajanChauhan-07/blostemiq.git
-cd blostemiq
+# One-time: generate JWT keypair
+mkdir -p keys && openssl genrsa -out keys/private.pem 2048 && openssl rsa -in keys/private.pem -pubout -out keys/public.pem
 
-# Generate JWT keypair (one-time)
-mkdir -p keys
-openssl genrsa -out keys/private.pem 2048
-openssl rsa -in keys/private.pem -pubout -out keys/public.pem
-
-# Start all services
+# Start everything
 docker compose up --build
-
-# Services will be available at:
-# Frontend:           http://localhost:3000
-# Kong API Gateway:   http://localhost:8000
-# Kong Admin:         http://localhost:8001
-# Auth Service:       http://localhost:3001
-# Partner Service:    http://localhost:3002
-# Notification WS:    ws://localhost:3004
-# Kafka UI:           http://localhost:8080
-# OpenSearch:         http://localhost:9200
-# OpenSearch Dash:    http://localhost:5601
-# MLflow:             http://localhost:5001
-# LocalStack AWS:     http://localhost:4566
 ```
 
-## 🌩️ AWS Deployment
+**What starts:**
+
+| Service | URL | What it is |
+|---|---|---|
+| Frontend (Next.js) | http://localhost:3000 | The web app |
+| Kong API Gateway | http://localhost:8000 | All API calls go through here |
+| Auth Service | http://localhost:3001 | Login / signup |
+| Partner Service | http://localhost:3002 | Partner data |
+| Notification WS | ws://localhost:3004 | Real-time alerts |
+| Kafka UI | http://localhost:8080 | View event streams |
+| OpenSearch | http://localhost:9200 | Search + vector index |
+| MLflow | http://localhost:5001 | ML experiment tracking |
+| LocalStack | http://localhost:4566 | Fake AWS (S3, DynamoDB, etc.) |
+
+---
+
+## ☁️ Deploy to AWS
 
 ```bash
-# Initialize Terraform
 cd infra/terraform/environments/dev
 terraform init
-terraform plan
-terraform apply
+terraform plan   # FREE — just shows what will be created
+terraform apply  # Creates real AWS resources (~$1.50/day)
 ```
 
-## 🧠 ML Models
+---
+
+## 💰 AWS Cost Control
 
 ```bash
-# Generate synthetic training data
-cd ml/data
-python generate_synthetic_data.py --records 10000
-
-# Train churn model locally (sample)
-cd ml/models/churn
-python train.py --mode local --sample-size 1000
-
-# Launch SageMaker training job (AWS)
-python train.py --mode sagemaker
+./scripts/cost-control.sh down    # Scale EKS to 0 (save money at night)
+./scripts/cost-control.sh up      # Scale EKS back to 1 node
+./scripts/cost-control.sh spend   # Check how much you've spent this month
+./scripts/cost-control.sh stop-ml # Delete SageMaker endpoints
 ```
 
-## Tech Stack
+---
 
-| Layer | Technology |
-|---|---|
-| **Frontend** | Next.js 14, TypeScript, Tailwind CSS, Framer Motion, Recharts, D3.js |
-| **API Gateway** | Kong on EKS |
-| **Backend** | Node.js + Express, Python + FastAPI |
-| **ML** | XGBoost, SHAP, ONNX, SageMaker |
-| **AI** | Claude (Anthropic), ElevenLabs, OpenAI Embeddings |
-| **Databases** | PostgreSQL RDS, DynamoDB, ElastiCache Redis |
-| **Search** | OpenSearch (full-text + vector) |
-| **Messaging** | MSK Kafka, Kinesis |
-| **Infra** | EKS, Terraform, Helm, ArgoCD |
-| **Observability** | Prometheus, Grafana, X-Ray, CloudWatch |
+## 🏆 Blostem AI Builder Hackathon — Demo: May 9 @ Noida HQ
 
-## 📊 Hackathon: Blostem AI Builder
-
-**Demo: May 9, 2026 @ Noida HQ**
+**Judging criteria:** Relevance (25%) · Technical Execution (25%) · Innovation (20%) · Demo (20%) · Scale (10%)

@@ -86,4 +86,3 @@ resource "aws_db_instance" "main" {
   tags = { Name = "blostemiq-${var.environment}-postgres" }
 }
 
-resource "random_password" "db" {}
