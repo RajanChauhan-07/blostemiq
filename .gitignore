@@ -31,3 +31,4 @@ data/*.parquet
 coverage/
 .nyc_output/
 junit.xml
+database/seeds/dynamo_events/
