@@ -1,11 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
-import { partnersRouter } from './routes/partners';
-import { ingestRouter } from './routes/ingest';
-import { healthRouter } from './routes/health';
 import { errorHandler } from './middleware/errorHandler';
-import { kafka } from './lib/kafka';
 import { logger } from './lib/logger';
 
 const app = express();
@@ -14,27 +10,51 @@ app.use(helmet());
 app.use(cors({ origin: process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:3000'], credentials: true }));
 app.use(express.json({ limit: '1mb' }));
 
-// ─── Routes ──────────────────────────────────────────────
-app.get('/health', (_req, res) => res.json({ status: 'ok', service: 'partner-service' }));
-app.use('/partners', partnersRouter);
-app.use('/ingest', ingestRouter);
-app.use('/health-scores', healthRouter);
+// ─── Health (must work even before DB connects) ───────────
+app.get('/health', (_req, res) => res.json({
+  status: 'ok',
+  service: 'partner-service',
+  timestamp: new Date().toISOString(),
+}));
+
+// ─── Routes (lazy-loaded to avoid crash on missing deps) ──
+async function mountRoutes() {
+  try {
+    const { partnersRouter } = await import('./routes/partners');
+    const { ingestRouter }   = await import('./routes/ingest');
+    const { healthRouter }   = await import('./routes/health');
+    app.use('/partners',     partnersRouter);
+    app.use('/ingest',       ingestRouter);
+    app.use('/health-scores', healthRouter);
+    logger.info('✅ Routes mounted');
+  } catch (err) {
+    logger.warn({ err }, '⚠️  Some routes failed to mount — check DB/Kafka env vars');
+  }
+}
 
 app.use(errorHandler);
 
 // ─── Start ───────────────────────────────────────────────
 async function start() {
-  // Connect to Kafka
+  // Mount routes (best-effort)
+  await mountRoutes();
+
+  // Connect to Kafka (best-effort)
   try {
+    const { kafka } = await import('./lib/kafka');
     await kafka.producer().connect();
     logger.info('✅ Kafka producer connected');
   } catch (err) {
-    logger.warn({ err }, '⚠️  Kafka not available — running in degraded mode');
+    logger.warn({ err }, '⚠️  Kafka not available — events will not be published');
   }
 
   const PORT = process.env.PORT || 3002;
   app.listen(PORT, () => logger.info(`🤝 Partner Service running on port ${PORT}`));
 }
 
-start();
+start().catch(err => {
+  logger.error({ err }, 'Fatal startup error');
+  process.exit(1);
+});
+
 export default app;

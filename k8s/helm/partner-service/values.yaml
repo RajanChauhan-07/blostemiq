@@ -1,0 +1,34 @@
+replicaCount: 2
+
+image:
+  repository: 279867549867.dkr.ecr.us-east-1.amazonaws.com/blostemiq-partner-service
+  pullPolicy: IfNotPresent
+  tag: "latest"
+
+service:
+  type: ClusterIP
+  port: 3002
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+env:
+  NODE_ENV: production
+  PORT: "3002"
+  LOG_LEVEL: info
+  AWS_REGION: us-east-1
+
+hpa:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 8
+  targetCPUUtilizationPercentage: 70
+
+probe:
+  path: /health
+  port: 3002

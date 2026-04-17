@@ -1,0 +1,34 @@
+replicaCount: 2
+
+image:
+  repository: 279867549867.dkr.ecr.us-east-1.amazonaws.com/blostemiq-frontend
+  pullPolicy: IfNotPresent
+  tag: "latest"
+
+service:
+  type: LoadBalancer   # Publicly accessible via ALB
+  port: 3000
+
+resources:
+  requests:
+    cpu: 200m
+    memory: 256Mi
+  limits:
+    cpu: 1000m
+    memory: 1Gi
+
+env:
+  NODE_ENV: production
+  PORT: "3000"
+  NEXT_PUBLIC_API_URL: "http://api-gateway"
+  NEXT_PUBLIC_WS_URL: "http://notification-service:3004"
+
+hpa:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 6
+  targetCPUUtilizationPercentage: 75
+
+probe:
+  path: /
+  port: 3000
