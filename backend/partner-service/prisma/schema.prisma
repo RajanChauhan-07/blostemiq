@@ -1,0 +1,37 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model organizations {
+  id         String   @id @default(uuid())
+  name       String
+  slug       String   @unique
+  plan       String   @default("basic")
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+  partners   partners[]
+}
+
+model partners {
+  id            String        @id @default(uuid())
+  org_id        String
+  name          String
+  domain        String?
+  tier          String        @default("basic")
+  contact_email String?
+  contact_name  String?
+  tags          String        @default("[]")
+  metadata      String        @default("{}")
+  created_at    DateTime      @default(now())
+  updated_at    DateTime      @updatedAt
+  deleted_at    DateTime?
+  organization  organizations @relation(fields: [org_id], references: [id])
+
+  @@index([org_id])
+  @@index([org_id, deleted_at])
+}

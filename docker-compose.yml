@@ -14,7 +14,7 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./database/schemas/init-db.sql:/docker-entrypoint-initdb.d/init.sql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U blostemiq"]
       interval: 10s
@@ -190,7 +190,7 @@ services:
   # ─── Microservices ───────────────────────────────────────
   auth-service:
     build:
-      context: ./apps/auth-service
+      context: ./backend/auth-service
       dockerfile: Dockerfile.dev
     container_name: blostemiq-auth
     ports:
@@ -205,7 +205,7 @@ services:
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-placeholder}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-placeholder}
     volumes:
-      - ./apps/auth-service:/app
+      - ./backend/auth-service:/app
       - /app/node_modules
       - ./keys:/app/keys
     depends_on:
@@ -216,7 +216,7 @@ services:
 
   partner-service:
     build:
-      context: ./apps/partner-service
+      context: ./backend/partner-service
       dockerfile: Dockerfile.dev
     container_name: blostemiq-partner
     ports:
@@ -227,21 +227,27 @@ services:
       DATABASE_URL: postgresql://blostemiq:blostemiq_dev@postgres:5432/blostemiq
       REDIS_URL: redis://redis:6379
       KAFKA_BROKERS: kafka:29092
-      AWS_ENDPOINT_URL: http://localstack:4566
+      LOCALSTACK_ENDPOINT: http://localstack:4566
       AWS_REGION: us-east-1
       AWS_ACCESS_KEY_ID: test
       AWS_SECRET_ACCESS_KEY: test
+      ENVIRONMENT: dev
     volumes:
-      - ./apps/partner-service:/app
+      - ./backend/partner-service:/app
       - /app/node_modules
     depends_on:
-      - postgres
-      - redis
-      - kafka
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      localstack:
+        condition: service_started
 
   notification-service:
     build:
-      context: ./apps/notification-service
+      context: ./backend/notification-service
       dockerfile: Dockerfile.dev
     container_name: blostemiq-notification
     ports:
@@ -252,7 +258,7 @@ services:
       REDIS_URL: redis://redis:6379
       KAFKA_BROKERS: kafka:29092
     volumes:
-      - ./apps/notification-service:/app
+      - ./backend/notification-service:/app
       - /app/node_modules
     depends_on:
       - redis
@@ -260,7 +266,7 @@ services:
 
   frontend:
     build:
-      context: ./apps/frontend
+      context: ./frontend
       dockerfile: Dockerfile.dev
     container_name: blostemiq-frontend
     ports:
@@ -272,7 +278,7 @@ services:
       NEXTAUTH_URL: http://localhost:3000
       NEXTAUTH_SECRET: blostemiq_dev_secret_change_in_prod
     volumes:
-      - ./apps/frontend:/app
+      - ./frontend:/app
       - /app/node_modules
       - /app/.next
     depends_on:
