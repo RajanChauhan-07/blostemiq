@@ -1,0 +1,111 @@
+import jwt from 'jsonwebtoken';
+import fs from 'fs';
+import { v4 as uuidv4 } from 'uuid';
+import { prisma } from './prisma';
+import { createHash } from 'crypto';
+import { AppError } from './errors';
+
+// Load RS256 keypair
+const privateKey = fs.readFileSync(process.env.JWT_PRIVATE_KEY_PATH || './keys/private.pem', 'utf8');
+const publicKey = fs.readFileSync(process.env.JWT_PUBLIC_KEY_PATH || './keys/public.pem', 'utf8');
+
+const ACCESS_TOKEN_TTL = '15m';
+const REFRESH_TOKEN_TTL_DAYS = 30;
+
+interface TokenPayload {
+  sub: string;
+  orgId: string;
+  role: string;
+  type: 'access' | 'refresh';
+  family?: string;
+}
+
+export async function generateTokens(
+  userId: string,
+  orgId: string,
+  role: string,
+  deviceFp: string,
+  ipAddress: string,
+  family: string = uuidv4()
+) {
+  // Access token — RS256 signed, 15 minutes
+  const accessToken = jwt.sign(
+    { sub: userId, orgId, role, type: 'access' },
+    privateKey,
+    { algorithm: 'RS256', expiresIn: ACCESS_TOKEN_TTL, issuer: 'blostemiq-auth' }
+  );
+
+  // Refresh token — opaque random token stored hashed in DB
+  const rawRefreshToken = uuidv4() + uuidv4();
+  const tokenHash = createHash('sha256').update(rawRefreshToken).digest('hex');
+  const expiresAt = new Date(Date.now() + REFRESH_TOKEN_TTL_DAYS * 24 * 60 * 60 * 1000);
+
+  await prisma.refresh_tokens.create({
+    data: {
+      user_id: userId,
+      token_hash: tokenHash,
+      family,
+      device_fp: deviceFp,
+      ip_address: ipAddress,
+      expires_at: expiresAt,
+    }
+  });
+
+  return { accessToken, refreshToken: rawRefreshToken };
+}
+
+export async function verifyRefreshToken(rawToken: string): Promise<{ userId: string; orgId: string; role: string; family: string }> {
+  const tokenHash = createHash('sha256').update(rawToken).digest('hex');
+
+  const stored = await prisma.refresh_tokens.findUnique({
+    where: { token_hash: tokenHash },
+    include: {
+      users: {
+        include: {
+          memberships: {
+            include: { organizations: true },
+            take: 1,
+            orderBy: { joined_at: 'asc' }
+          }
+        }
+      }
+    }
+  });
+
+  if (!stored) throw new AppError('Invalid refresh token', 401);
+  if (stored.revoked_at) {
+    // Token reuse detected — revoke entire family
+    await prisma.refresh_tokens.updateMany({
+      where: { family: stored.family },
+      data: { revoked_at: new Date() }
+    });
+    throw new AppError('Refresh token reuse detected — please sign in again', 401);
+  }
+  if (stored.expires_at < new Date()) throw new AppError('Refresh token expired', 401);
+
+  // Revoke the used token (rotation)
+  await prisma.refresh_tokens.update({
+    where: { id: stored.id },
+    data: { revoked_at: new Date() }
+  });
+
+  const membership = stored.users.memberships[0];
+  return {
+    userId: stored.user_id,
+    orgId: membership.org_id,
+    role: membership.role,
+    family: stored.family,
+  };
+}
+
+export async function revokeRefreshToken(rawToken: string) {
+  const tokenHash = createHash('sha256').update(rawToken).digest('hex');
+  await prisma.refresh_tokens.updateMany({
+    where: { token_hash: tokenHash },
+    data: { revoked_at: new Date() }
+  });
+}
+
+export function getPublicKey() {
+  return publicKey;
+}

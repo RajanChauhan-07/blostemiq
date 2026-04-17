@@ -1,0 +1,23 @@
+{
+  "name": "blostemiq",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "apps/frontend",
+    "apps/auth-service",
+    "apps/partner-service",
+    "apps/notification-service",
+    "apps/search-service",
+    "apps/billing-service"
+  ],
+  "scripts": {
+    "dev": "docker compose up --build",
+    "dev:frontend": "npm run dev --workspace=apps/frontend",
+    "test": "npm run test --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "npm": ">=10.0.0"
+  }
+}
