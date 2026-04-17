@@ -6,6 +6,10 @@ import {
   LayoutDashboard, Users, Mail, BarChart2,
   Search, Settings, Bell, LogOut, ChevronRight, Zap
 } from 'lucide-react';
+import { ToastContainer } from '../../components/ui/ToastContainer';
+import { useRealtimeAlerts } from '../../lib/hooks/useRealtimeAlerts';
+import { useNotificationStore } from '../../stores/notificationStore';
+
 
 const navItems = [
   { href: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
@@ -18,9 +22,17 @@ const navItems = [
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  // Connect to real-time WebSocket (dev mode: uses dev-org)
+  useRealtimeAlerts('dev-org');
+  const unreadCount = useNotificationStore(s => s.unreadCount());
+  const connected   = useNotificationStore(s => s.connected);
+
 
   return (
     <div className="flex h-screen overflow-hidden" style={{ background: 'var(--bg-base)' }}>
+      {/* Real-time toast notifications */}
+      <ToastContainer />
+
 
       {/* ─── Sidebar ──────────────────────────────────── */}
       <aside className="w-60 shrink-0 flex flex-col border-r" style={{ background: 'var(--bg-surface)', borderColor: 'var(--border)' }}>
@@ -85,11 +97,22 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
           {/* Right actions */}
           <div className="flex items-center gap-3">
-            {/* Alert bell with badge */}
+            {/* WS connection indicator */}
+            <div className="flex items-center gap-1.5 text-xs" style={{ color: 'var(--text-muted)' }}>
+              <div className={`w-1.5 h-1.5 rounded-full ${connected ? 'animate-pulse' : ''}`}
+                style={{ background: connected ? 'var(--green)' : 'var(--text-muted)' }} />
+              {connected ? 'Live' : 'Offline'}
+            </div>
+
+            {/* Alert bell with live unread badge */}
             <button className="relative glass rounded-lg p-2.5 glass-hover">
               <Bell size={16} style={{ color: 'var(--text-secondary)' }} />
-              <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full text-xs flex items-center justify-center font-bold"
-                style={{ background: 'var(--red)', color: 'white', fontSize: '10px' }}>3</span>
+              {unreadCount > 0 && (
+                <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full text-xs flex items-center justify-center font-bold"
+                  style={{ background: 'var(--red)', color: 'white', fontSize: '10px' }}>
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </span>
+              )}
             </button>
 
             {/* Avatar */}
@@ -98,6 +121,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               R
             </div>
           </div>
+
         </header>
 
         {/* Page content */}
