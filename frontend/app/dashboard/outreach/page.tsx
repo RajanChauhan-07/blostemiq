@@ -1,167 +1,244 @@
 'use client';
 
-import { useState } from 'react';
-import { Mail, Send, Copy, Check, RefreshCcw, Shield, AlertTriangle, Sparkles } from 'lucide-react';
+import { useState, useRef } from 'react';
+import { Mail, Send, Copy, CheckCircle2, Loader2, AlertTriangle, Shield, ShieldCheck, Bot, Sparkles } from 'lucide-react';
 
-const atRiskPartners = [
-  { id: 'p5', name: 'BharatPe', health: 22, churn: 91, reason: 'No API calls in 32 days' },
-  { id: 'p1', name: 'Razorpay', health: 38, churn: 82, reason: 'API usage dropped 67% vs last month' },
-  { id: 'p12', name: 'Open Financial', health: 31, churn: 78, reason: 'Only 2 features adopted, no login 25d' },
-  { id: 'p20', name: 'Rupeek', health: 35, churn: 76, reason: 'Feature adoption stalled, high error rate' },
-  { id: 'p8', name: 'M2P Fintech', health: 44, churn: 62, reason: '89 API calls (down from 560 last month)' },
-  { id: 'p19', name: 'NiYO', health: 48, churn: 55, reason: 'No platform login in 14 days' },
+const AT_RISK_PARTNERS = [
+  { id: 1, name: 'BharatPe', health: 12, churn: 91, reason: 'Zero API calls for 32 days', segment: 'Payments' },
+  { id: 2, name: 'Razorpay', health: 38, churn: 67, reason: 'API usage dropped 67% MoM', segment: 'Payments' },
+  { id: 3, name: 'Lendingkart', health: 44, churn: 55, reason: 'Support tickets up 400%', segment: 'Lending' },
+  { id: 4, name: 'Groww', health: 51, churn: 42, reason: 'Feature adoption declined to 40%', segment: 'WealthTech' },
+  { id: 5, name: 'Slice', health: 55, churn: 38, reason: 'No login in 12 days', segment: 'Neobanking' },
 ];
 
-// Pre-generated AI outreach emails
-const emailSequences: Record<string, {subject: string; body: string; cta: string; compliance: boolean}[]> = {
-  'p5': [
-    { subject: 'Checking in — we noticed your integration has been quiet', body: `Hi Team BharatPe,\n\nI wanted to personally reach out because I noticed your API integration hasn't been active recently. We understand that priorities shift, and I'd love to understand if there's anything on our end that could be improved.\n\nWe've recently launched several new features that could be particularly valuable for your lending workflows:\n\n• Real-time webhook notifications for payment status changes\n• Batch processing API (up to 10,000 transactions/call)\n• Enhanced error reporting with actionable suggestions\n\nWould you have 15 minutes this week for a quick sync? I'd love to understand your current roadmap and see how we can better support your team.`, cta: 'Schedule a 15-min sync →', compliance: true },
-    { subject: 'Quick follow-up: New API features that might help', body: `Hi Team,\n\nFollowing up on my previous note. I also wanted to share that several partners in the lending space have seen a 40% reduction in integration errors after adopting our new SDK v3.2.\n\nHere's a quick 2-minute video walkthrough of the changes: [link]\n\nNo pressure at all — just wanted to make sure you're aware of these improvements.`, cta: 'Watch 2-min walkthrough →', compliance: true },
-    { subject: 'We value your partnership — here to help', body: `Hi Team BharatPe,\n\nThis is my final follow-up for now. I completely understand if the timing isn't right.\n\nJust wanted you to know:\n• Your integration credentials remain active\n• Our support team is available 24/7 at support@blostemiq.com\n• We'd welcome any feedback on how we can improve\n\nWhenever you're ready to re-engage, we'll be here.`, cta: 'Reply with any feedback →', compliance: true },
-  ],
-  'p1': [
-    { subject: 'Noticed a dip in your API usage — everything OK?', body: `Hi Vikram,\n\nI noticed your API call volume has decreased by approximately 67% compared to last month. I wanted to check in to see if everything is running smoothly on your end.\n\nIf you're experiencing any technical issues, our engineering team can prioritize a resolution. We also have some new performance optimizations that could help:\n\n• Connection pooling improvements (2x throughput)\n• New regional endpoint in Mumbai (lower latency)\n• Batch webhooks for high-volume processing\n\nWould love to hop on a quick call to discuss.`, cta: 'Book a call with our CTO →', compliance: true },
-    { subject: 'Re: API usage — sharing some helpful resources', body: `Hi Vikram,\n\nFollowing up with a few resources that might be helpful:\n\n1. Migration guide to our v4 API (30% faster)\n2. Best practices doc for payment processing at scale\n3. Case study: How Juspay reduced latency by 45%\n\nHappy to walk through any of these together.`, cta: 'Access resources →', compliance: true },
-    { subject: 'Partnership check-in — Q2 planning', body: `Hi Vikram,\n\nAs we head into Q2, I'd love to understand your team's priorities and see where our roadmap aligns. We have some exciting features in the pipeline that I think could be really impactful for Razorpay's use case.\n\nNo agenda — just an open conversation about how we can best support your goals.`, cta: 'Schedule Q2 sync →', compliance: true },
-  ],
-};
+interface EmailItem {
+  subject: string;
+  body: string;
+  cta: string;
+  compliance: boolean;
+  violations: string[];
+}
 
-// Generate fallback for other partners
-function getEmails(id: string) {
-  if (emailSequences[id]) return emailSequences[id];
-  return [
-    { subject: 'Partnership check-in — here to support your success', body: 'Hi Team,\n\nI wanted to reach out to check in on your integration experience. We\'ve noticed some changes in your usage patterns and want to make sure everything is working well for your team.\n\nOur platform has evolved significantly in recent months, and I\'d love to share some updates that could be valuable for your workflows.\n\nWould you have time for a brief sync this week?', cta: 'Schedule a sync →', compliance: true },
-    { subject: 'New features that could help your team', body: 'Hi Team,\n\nQuick follow-up with some resources:\n\n• Updated SDK with better error handling\n• New dashboard analytics for monitoring\n• Improved documentation and code samples\n\nLet me know if any of these are interesting to explore.', cta: 'Explore new features →', compliance: true },
-    { subject: 'We value your partnership', body: 'Hi Team,\n\nJust a final note — we truly value your partnership and are here whenever you need us. Our support channels are always open, and we welcome any feedback.\n\nWishing your team all the best.', cta: 'Share feedback →', compliance: true },
-  ];
+interface GenerateResult {
+  partner_name: string;
+  category: string;
+  emails: EmailItem[];
+  model_used: string;
 }
 
 export default function OutreachPage() {
-  const [selectedPartner, setSelectedPartner] = useState(atRiskPartners[0]);
-  const [generating, setGenerating] = useState(false);
-  const [generated, setGenerated] = useState(true);
-  const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
+  const [selected, setSelected] = useState(AT_RISK_PARTNERS[0]);
+  const [result, setResult] = useState<GenerateResult | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [copied, setCopied] = useState<number | null>(null);
   const [activeEmail, setActiveEmail] = useState(0);
 
-  const emails = getEmails(selectedPartner.id);
+  const handleGenerate = async () => {
+    setLoading(true);
+    setError(null);
+    setResult(null);
 
-  const handleGenerate = () => {
-    setGenerating(true);
-    setGenerated(false);
-    setTimeout(() => {
-      setGenerating(false);
-      setGenerated(true);
+    try {
+      const res = await fetch('/api/outreach/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          partner_name: selected.name,
+          health_score: selected.health,
+          churn_risk: selected.churn / 100,
+          reason: selected.reason,
+          segment: selected.segment,
+        }),
+      });
+
+      if (!res.ok) {
+        throw new Error(`API returned ${res.status}`);
+      }
+
+      const data: GenerateResult = await res.json();
+      setResult(data);
       setActiveEmail(0);
-    }, 2000);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Unknown error';
+      setError(msg);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleCopy = (idx: number) => {
-    const email = emails[idx];
-    navigator.clipboard.writeText(`Subject: ${email.subject}\n\n${email.body}\n\n${email.cta}`);
-    setCopiedIdx(idx);
-    setTimeout(() => setCopiedIdx(null), 2000);
+  const handleCopy = (text: string, idx: number) => {
+    navigator.clipboard.writeText(text);
+    setCopied(idx);
+    setTimeout(() => setCopied(null), 2000);
   };
 
   return (
-    <div className="max-w-7xl mx-auto space-y-6 pb-20">
+    <div className="space-y-6">
+      {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold flex items-center gap-2"><Mail className="text-[var(--accent)]" /> AI Outreach Composer</h1>
-        <p className="text-sm mt-1" style={{ color: 'var(--text-secondary)' }}>Generate personalized re-engagement sequences powered by AI. SEBI/RBI compliant.</p>
+        <h1 className="text-2xl font-bold flex items-center gap-3">
+          <Mail size={24} style={{ color: 'var(--accent)' }} />
+          AI Outreach Composer
+        </h1>
+        <p className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>
+          Real AI-generated re-engagement sequences • Powered by Qwen 2.5 via Bytez
+        </p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Partner Selection */}
-        <div className="glass rounded-2xl p-5 border border-white/[0.05] space-y-3">
-          <h2 className="font-semibold text-sm border-b pb-2" style={{ borderColor: 'var(--border)' }}>At-Risk Partners</h2>
-          {atRiskPartners.map(p => (
-            <button key={p.id} onClick={() => { setSelectedPartner(p); setGenerated(false); }}
-              className={`w-full text-left rounded-xl p-3 transition-all ${selectedPartner.id === p.id ? 'border-[var(--accent)]' : ''}`}
-              style={{ background: selectedPartner.id === p.id ? 'var(--accent-dim)' : 'var(--bg-elevated)', border: `1px solid ${selectedPartner.id === p.id ? 'rgba(0,212,255,0.3)' : 'var(--border)'}` }}>
+        {/* Left: Partner Selection */}
+        <div className="space-y-3">
+          <h3 className="text-sm font-semibold" style={{ color: 'var(--text-secondary)' }}>At-Risk Partners</h3>
+          {AT_RISK_PARTNERS.map(p => (
+            <button key={p.id} onClick={() => { setSelected(p); setResult(null); }}
+              className={`w-full glass rounded-xl p-4 text-left transition-all ${selected.id === p.id ? 'ring-1' : 'glass-hover'}`}
+              style={selected.id === p.id ? { borderColor: 'var(--accent)', boxShadow: '0 0 15px rgba(0,212,255,0.1)' } : {}}>
               <div className="flex items-center justify-between mb-1">
                 <span className="font-medium text-sm">{p.name}</span>
-                <span className="text-xs badge-red px-2 py-0.5 rounded-full">{p.churn}%</span>
+                <span className={`text-xs px-2 py-0.5 rounded-full font-mono ${p.churn > 70 ? 'badge-red' : p.churn > 50 ? 'badge-amber' : 'badge-cyan'}`}>
+                  {p.churn}% churn
+                </span>
               </div>
-              <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{p.reason}</p>
+              <div className="text-xs" style={{ color: 'var(--text-muted)' }}>{p.reason}</div>
+              <div className="mt-2 h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--bg-elevated)' }}>
+                <div className="h-full rounded-full transition-all" style={{
+                  width: `${p.health}%`,
+                  background: p.health > 70 ? 'var(--green)' : p.health > 40 ? 'var(--amber)' : 'var(--red)',
+                }} />
+              </div>
             </button>
           ))}
 
-          <button onClick={handleGenerate} disabled={generating}
-            className="w-full btn-primary py-3 rounded-xl mt-4 font-semibold flex items-center justify-center gap-2">
-            {generating ? <RefreshCcw className="animate-spin" size={16} /> : <Sparkles size={16} />}
-            {generating ? 'AI Generating...' : 'Generate Outreach Sequence'}
+          {/* Generate Button */}
+          <button onClick={handleGenerate} disabled={loading}
+            className="btn-primary w-full py-3 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 mt-4"
+            style={{ boxShadow: '0 0 20px rgba(0,212,255,0.2)' }}>
+            {loading ? (
+              <><Loader2 size={16} className="animate-spin" /> AI is writing emails...</>
+            ) : (
+              <><Sparkles size={16} /> Generate Real AI Sequence</>
+            )}
           </button>
         </div>
 
-        {/* Email Preview */}
+        {/* Right: Generated Emails */}
         <div className="lg:col-span-2 space-y-4">
-          {generated ? (
-            <>
-              {/* Tabs */}
+          {error && (
+            <div className="glass rounded-xl p-4 flex items-center gap-3 border border-red-500/20">
+              <AlertTriangle size={16} style={{ color: 'var(--red)' }} />
+              <span className="text-sm" style={{ color: 'var(--red)' }}>{error}</span>
+            </div>
+          )}
+
+          {!result && !loading && (
+            <div className="glass rounded-2xl p-12 flex flex-col items-center justify-center text-center" style={{ minHeight: 400 }}>
+              <Bot size={48} style={{ color: 'var(--text-muted)', opacity: 0.3 }} className="mb-4" />
+              <h3 className="text-lg font-semibold mb-2">Select a partner & hit Generate</h3>
+              <p className="text-sm max-w-md" style={{ color: 'var(--text-muted)' }}>
+                Our AI will analyze the partner's health metrics and generate a personalized 3-email 
+                re-engagement sequence with SEBI/RBI compliance checking — all in real-time.
+              </p>
+            </div>
+          )}
+
+          {loading && (
+            <div className="glass rounded-2xl p-12 flex flex-col items-center justify-center text-center" style={{ minHeight: 400 }}>
+              <div className="relative mb-6">
+                <div className="w-16 h-16 rounded-full animate-spin" style={{ border: '3px solid var(--bg-elevated)', borderTopColor: 'var(--accent)' }} />
+                <Bot size={24} className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" style={{ color: 'var(--accent)' }} />
+              </div>
+              <h3 className="text-lg font-semibold mb-2">AI is composing emails...</h3>
+              <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
+                Qwen 2.5 is analyzing {selected.name}'s data and writing a personalized sequence
+              </p>
+              <div className="mt-4 flex gap-1">
+                {[0, 1, 2].map(i => (
+                  <div key={i} className="w-2 h-2 rounded-full animate-bounce" 
+                    style={{ background: 'var(--accent)', animationDelay: `${i * 0.15}s` }} />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {result && (
+            <div className="space-y-4">
+              {/* Model info badge */}
+              <div className="flex items-center gap-3 flex-wrap">
+                <span className="badge-cyan text-xs px-3 py-1 rounded-full flex items-center gap-1.5">
+                  <Bot size={12} /> Model: {result.model_used}
+                </span>
+                <span className="text-xs px-3 py-1 rounded-full" style={{ background: 'var(--bg-elevated)', color: 'var(--text-secondary)' }}>
+                  Category: {result.category.toUpperCase()}
+                </span>
+              </div>
+
+              {/* Email Tabs */}
               <div className="flex gap-2">
-                {emails.map((_, i) => (
+                {result.emails.map((_, i) => (
                   <button key={i} onClick={() => setActiveEmail(i)}
-                    className={`text-xs px-4 py-2 rounded-lg transition-all ${activeEmail === i ? 'badge-cyan font-semibold' : 'glass'}`}>
-                    Email {i + 1} {i === 0 ? '(Day 1)' : i === 1 ? '(Day 3)' : '(Day 7)'}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${activeEmail === i ? 'btn-primary' : 'glass glass-hover'}`}>
+                    Day {[1, 3, 7][i]} Email
                   </button>
                 ))}
               </div>
 
-              {/* Email Content */}
-              <div className="glass rounded-2xl border border-white/[0.05] overflow-hidden">
-                {/* Subject */}
-                <div className="px-6 py-4 border-b flex items-center justify-between" style={{ borderColor: 'var(--border)' }}>
+              {/* Active Email */}
+              {result.emails[activeEmail] && (
+                <div className="glass rounded-2xl p-6 space-y-4 border border-white/5">
+                  {/* Compliance Badge */}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      {result.emails[activeEmail].compliance ? (
+                        <span className="badge-green text-xs px-3 py-1 rounded-full flex items-center gap-1.5">
+                          <ShieldCheck size={12} /> SEBI/RBI Compliant
+                        </span>
+                      ) : (
+                        <span className="badge-red text-xs px-3 py-1 rounded-full flex items-center gap-1.5">
+                          <Shield size={12} /> Compliance Issue
+                        </span>
+                      )}
+                    </div>
+                    <button onClick={() => handleCopy(`Subject: ${result.emails[activeEmail].subject}\n\n${result.emails[activeEmail].body}\n\n${result.emails[activeEmail].cta}`, activeEmail)}
+                      className="glass glass-hover rounded-lg px-3 py-1.5 text-xs flex items-center gap-1.5">
+                      {copied === activeEmail ? <><CheckCircle2 size={12} style={{ color: 'var(--green)' }} /> Copied!</> : <><Copy size={12} /> Copy</>}
+                    </button>
+                  </div>
+
+                  {/* Subject */}
                   <div>
-                    <div className="text-xs mb-1" style={{ color: 'var(--text-muted)' }}>Subject</div>
-                    <div className="font-semibold text-sm">{emails[activeEmail].subject}</div>
+                    <label className="text-xs block mb-1" style={{ color: 'var(--text-muted)' }}>Subject</label>
+                    <div className="text-sm font-medium">{result.emails[activeEmail].subject}</div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    {emails[activeEmail].compliance && (
-                      <span className="badge-green text-xs px-2 py-0.5 rounded-full flex items-center gap-1">
-                        <Shield size={10} /> Compliant
-                      </span>
-                    )}
+
+                  {/* Body */}
+                  <div>
+                    <label className="text-xs block mb-1" style={{ color: 'var(--text-muted)' }}>Body</label>
+                    <div className="text-sm whitespace-pre-wrap leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
+                      {result.emails[activeEmail].body}
+                    </div>
                   </div>
-                </div>
 
-                {/* Body */}
-                <div className="px-6 py-5">
-                  <pre className="text-sm whitespace-pre-wrap leading-relaxed" style={{ color: 'var(--text-secondary)', fontFamily: 'Inter, sans-serif' }}>
-                    {emails[activeEmail].body}
-                  </pre>
-                </div>
-
-                {/* CTA */}
-                <div className="px-6 py-4 border-t flex items-center justify-between" style={{ borderColor: 'var(--border)', background: 'var(--bg-elevated)' }}>
-                  <div className="text-xs" style={{ color: 'var(--text-muted)' }}>CTA: <span style={{ color: 'var(--accent)' }}>{emails[activeEmail].cta}</span></div>
-                  <div className="flex gap-2">
-                    <button onClick={() => handleCopy(activeEmail)}
-                      className="btn-ghost px-3 py-1.5 rounded-lg text-xs flex items-center gap-1">
-                      {copiedIdx === activeEmail ? <Check size={12} className="text-green-400" /> : <Copy size={12} />}
-                      {copiedIdx === activeEmail ? 'Copied!' : 'Copy'}
-                    </button>
-                    <button className="btn-primary px-3 py-1.5 rounded-lg text-xs flex items-center gap-1">
-                      <Send size={12} /> Send via Gmail
-                    </button>
+                  {/* CTA */}
+                  <div>
+                    <label className="text-xs block mb-1" style={{ color: 'var(--text-muted)' }}>Call to Action</label>
+                    <div className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium" style={{ background: 'var(--accent)', color: '#080c14' }}>
+                      <Send size={14} />
+                      {result.emails[activeEmail].cta}
+                    </div>
                   </div>
-                </div>
-              </div>
 
-              {/* Compliance Notice */}
-              <div className="glass rounded-xl p-4 flex items-start gap-3">
-                <Shield size={16} className="shrink-0 mt-0.5" style={{ color: 'var(--green)' }} />
-                <div>
-                  <div className="text-xs font-semibold" style={{ color: 'var(--green)' }}>SEBI/RBI Compliance Check Passed</div>
-                  <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
-                    All generated content has been verified against financial regulatory language guidelines. No guaranteed returns, no misleading claims, no pressure tactics detected.
-                  </p>
+                  {/* Violations */}
+                  {result.emails[activeEmail].violations.length > 0 && (
+                    <div className="rounded-lg p-3" style={{ background: 'rgba(239,68,68,0.1)' }}>
+                      <div className="text-xs font-medium mb-1" style={{ color: 'var(--red)' }}>Compliance violations detected:</div>
+                      {result.emails[activeEmail].violations.map((v, i) => (
+                        <div key={i} className="text-xs" style={{ color: 'var(--text-muted)' }}>• {v}</div>
+                      ))}
+                    </div>
+                  )}
                 </div>
-              </div>
-            </>
-          ) : (
-            <div className="glass rounded-2xl border border-white/[0.05] flex flex-col items-center justify-center min-h-[500px] text-[var(--text-muted)] space-y-3">
-              <Sparkles size={40} className="opacity-20" />
-              <p className="text-sm">Select a partner and click {'"'}Generate{'"'} to create an AI-powered outreach sequence.</p>
-              <p className="text-xs" style={{ color: 'var(--text-muted)' }}>The AI will craft 3 personalized emails with compliance checking.</p>
+              )}
             </div>
           )}
         </div>

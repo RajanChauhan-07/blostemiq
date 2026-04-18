@@ -1,50 +1,103 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
-import { Play, Pause, Volume2 } from 'lucide-react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { Play, Pause, Volume2, Loader2 } from 'lucide-react';
 
-const BRIEFING_TEXT = `Good morning. Here's your daily partner intelligence briefing. 
-
-BharatPe remains critical — zero API calls for 32 days running. Churn probability is at 91%. I recommend generating an escalation outreach sequence immediately.
-
-Razorpay's API usage dropped another 12% overnight, now down 67% month over month. Their health score is 38 and falling. 
-
-On the positive side, CRED hit a new record — 8,900 API calls this week with 100% feature adoption. Zerodha continues strong at health score 96.
-
-Three new alerts fired overnight. Two critical, one medium. Your portfolio average health is 64.2, down 3 points from last week. 
-
-I'll have your weekly PDF digest ready by noon. Have a productive day.`;
+const AT_RISK_PARTNERS = [
+  { name: 'BharatPe', health: 12, churn: 91, reason: 'Zero API calls for 32 days' },
+  { name: 'Razorpay', health: 38, churn: 67, reason: 'API usage dropped 67% MoM' },
+  { name: 'Lendingkart', health: 44, churn: 55, reason: 'Support tickets up 400%' },
+  { name: 'Groww', health: 51, churn: 42, reason: 'Feature adoption declined to 40%' },
+  { name: 'CRED', health: 92, churn: 5, reason: 'Record 8900 API calls this week' },
+];
 
 export function VoiceBriefing() {
   const [playing, setPlaying] = useState(false);
+  const [generating, setGenerating] = useState(false);
   const [progress, setProgress] = useState(0);
-  const [currentWord, setCurrentWord] = useState(0);
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
-  const words = BRIEFING_TEXT.split(' ');
-  const totalDuration = 45; // seconds
+  const [duration, setDuration] = useState(0);
+  const [hasAudio, setHasAudio] = useState(false);
+  const [transcript, setTranscript] = useState('');
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const animFrameRef = useRef<number>(0);
 
-  useEffect(() => {
-    if (playing) {
-      const startTime = Date.now() - (progress * totalDuration * 10);
-      intervalRef.current = setInterval(() => {
-        const elapsed = (Date.now() - startTime) / 1000;
-        const pct = Math.min((elapsed / totalDuration) * 100, 100);
-        setProgress(pct);
-        setCurrentWord(Math.floor((pct / 100) * words.length));
-        if (pct >= 100) {
-          setPlaying(false);
-          setProgress(0);
-          setCurrentWord(0);
-          if (intervalRef.current) clearInterval(intervalRef.current);
+  // Generate briefing from real ElevenLabs
+  const generateBriefing = useCallback(async () => {
+    setGenerating(true);
+    try {
+      const res = await fetch('/api/outreach/briefing/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          partners: AT_RISK_PARTNERS,
+          total_partners: 20,
+          avg_health: 64.2,
+          at_risk_count: 4,
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setTranscript(data.transcript);
+        if (data.audio_url) {
+          // Create audio element pointing to the audio endpoint
+          const audio = new Audio(`/api/outreach${data.audio_url}`);
+          audio.addEventListener('loadedmetadata', () => {
+            setDuration(audio.duration);
+            setHasAudio(true);
+          });
+          audio.addEventListener('ended', () => {
+            setPlaying(false);
+            setProgress(0);
+          });
+          audio.addEventListener('error', () => {
+            console.warn('Audio load error, falling back to visual-only mode');
+            setHasAudio(false);
+          });
+          audioRef.current = audio;
         }
-      }, 100);
-    } else if (intervalRef.current) {
-      clearInterval(intervalRef.current);
+      }
+    } catch (err) {
+      console.error('Briefing generation failed:', err);
+    } finally {
+      setGenerating(false);
     }
-    return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
+  }, []);
+
+  // Update progress bar from audio time
+  const updateProgress = useCallback(() => {
+    if (audioRef.current && playing) {
+      const pct = (audioRef.current.currentTime / audioRef.current.duration) * 100;
+      setProgress(pct);
+      animFrameRef.current = requestAnimationFrame(updateProgress);
+    }
   }, [playing]);
 
-  // Generate waveform bars
+  useEffect(() => {
+    if (playing && hasAudio) {
+      animFrameRef.current = requestAnimationFrame(updateProgress);
+    }
+    return () => cancelAnimationFrame(animFrameRef.current);
+  }, [playing, hasAudio, updateProgress]);
+
+  const togglePlay = async () => {
+    if (!hasAudio && !generating) {
+      // First click: generate the briefing
+      await generateBriefing();
+      return;
+    }
+
+    if (audioRef.current) {
+      if (playing) {
+        audioRef.current.pause();
+        setPlaying(false);
+      } else {
+        audioRef.current.play();
+        setPlaying(true);
+      }
+    }
+  };
+
+  // Waveform bars
   const bars = 24;
   const getBarHeight = (i: number) => {
     if (!playing) return 3;
@@ -75,42 +128,31 @@ export function VoiceBriefing() {
         </div>
 
         {/* Play/Pause */}
-        <button onClick={() => setPlaying(p => !p)}
+        <button onClick={togglePlay} disabled={generating}
           className="w-7 h-7 rounded-full flex items-center justify-center transition-all hover:scale-110"
           style={{ background: 'var(--accent)', color: '#080c14' }}>
-          {playing ? <Pause size={12} /> : <Play size={12} style={{ marginLeft: 1 }} />}
+          {generating ? (
+            <Loader2 size={12} className="animate-spin" />
+          ) : playing ? (
+            <Pause size={12} />
+          ) : (
+            <Play size={12} style={{ marginLeft: 1 }} />
+          )}
         </button>
 
         {/* Label */}
         <div className="hidden md:block">
           <div className="text-xs font-medium" style={{ color: playing ? 'var(--accent)' : 'var(--text-secondary)' }}>
-            {playing ? 'Playing briefing...' : "Today's briefing ready"}
+            {generating ? 'Generating with ElevenLabs...' : playing ? 'Playing briefing...' : hasAudio ? 'Briefing ready' : "Generate today's briefing"}
           </div>
-          {playing && (
+          {playing && duration > 0 && (
             <div className="text-[10px] font-mono" style={{ color: 'var(--text-muted)' }}>
-              {Math.floor((progress / 100) * totalDuration)}s / {totalDuration}s
+              {Math.floor((progress / 100) * duration)}s / {Math.floor(duration)}s
             </div>
           )}
         </div>
 
         <Volume2 size={12} style={{ color: 'var(--text-muted)' }} />
-      </div>
-    </div>
-  );
-}
-
-export function BriefingTranscript() {
-  return (
-    <div className="glass rounded-2xl p-6 border border-white/5">
-      <h3 className="text-sm font-semibold mb-4 flex items-center gap-2">
-        <Volume2 size={14} style={{ color: 'var(--accent)' }} />
-        Morning Briefing Transcript
-      </h3>
-      <div className="text-sm leading-relaxed whitespace-pre-wrap" style={{ color: 'var(--text-secondary)' }}>
-        {BRIEFING_TEXT}
-      </div>
-      <div className="mt-4 text-xs" style={{ color: 'var(--text-muted)' }}>
-        Generated at 8:00 AM IST · Voice: Adam (ElevenLabs) · Duration: 45s
       </div>
     </div>
   );
