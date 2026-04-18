@@ -1,0 +1,76 @@
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "debian-openssl-1.1.x", "debian-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model organizations {
+  id         String   @id @default(uuid())
+  name       String
+  slug       String   @unique
+  plan       String   @default("free")
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+  memberships memberships[]
+}
+
+model users {
+  id              String        @id @default(uuid())
+  email           String        @unique
+  hashed_password String?
+  google_id       String?       @unique
+  full_name       String?
+  avatar_url      String?
+  created_at      DateTime      @default(now())
+  updated_at      DateTime      @updatedAt
+  last_login_at   DateTime?
+  memberships     memberships[]
+  refresh_tokens  refresh_tokens[]
+  audit_logs      audit_logs[]
+}
+
+model memberships {
+  id            String        @id @default(uuid())
+  user_id       String
+  org_id        String
+  role          String        @default("viewer") // admin, analyst, viewer
+  joined_at     DateTime      @default(now())
+  users         users         @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  organizations organizations @relation(fields: [org_id], references: [id], onDelete: Cascade)
+
+  @@unique([user_id, org_id])
+}
+
+model refresh_tokens {
+  id          String   @id @default(uuid())
+  token       String   @unique
+  user_id     String
+  device_info String?
+  ip_address  String?
+  expires_at  DateTime
+  revoked_at  DateTime?
+  created_at  DateTime @default(now())
+  users       users    @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id])
+}
+
+model audit_logs {
+  id          String   @id @default(uuid())
+  org_id      String
+  user_id     String
+  action      String
+  resource    String?
+  resource_id String?
+  ip_address  String?
+  user_agent  String?
+  created_at  DateTime @default(now())
+  users       users    @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([org_id])
+  @@index([user_id])
+}

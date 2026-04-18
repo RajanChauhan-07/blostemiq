@@ -22,6 +22,10 @@ env:
   PORT: "3002"
   LOG_LEVEL: info
   AWS_REGION: us-east-1
+  DATABASE_URL: "postgresql://blostemiq:CQASqiCU8cn3AU4HwjuxOcMSNI5ht8EN@blostemiq-dev.culc24yc0frz.us-east-1.rds.amazonaws.com:5432/blostemiq?schema=partner"
+  REDIS_URL: "redis://blostemiq-dev-redis.t6n5iw.0001.use1.cache.amazonaws.com:6379"
+  KAFKA_BROKERS: "localhost:9092"
+
 
 hpa:
   enabled: true

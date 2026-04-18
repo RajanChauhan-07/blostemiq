@@ -1,0 +1,82 @@
+{
+  "aws_account_id": {
+    "sensitive": false,
+    "type": "string",
+    "value": "279867549867"
+  },
+  "ecr_urls": {
+    "sensitive": false,
+    "type": [
+      "object",
+      {
+        "analytics-service": "string",
+        "auth-service": "string",
+        "billing-service": "string",
+        "frontend": "string",
+        "lead-scoring-service": "string",
+        "ml-serving": "string",
+        "notification-service": "string",
+        "outreach-service": "string",
+        "partner-service": "string",
+        "report-engine": "string",
+        "search-service": "string"
+      }
+    ],
+    "value": {
+      "analytics-service": "279867549867.dkr.ecr.us-east-1.amazonaws.com/blostemiq-analytics-service",
+      "auth-service": "279867549867.dkr.ecr.us-east-1.amazonaws.com/blostemiq-auth-service",
+      "billing-service": "279867549867.dkr.ecr.us-east-1.amazonaws.com/blostemiq-billing-service",
+      "frontend": "279867549867.dkr.ecr.us-east-1.amazonaws.com/blostemiq-frontend",
+      "lead-scoring-service": "279867549867.dkr.ecr.us-east-1.amazonaws.com/blostemiq-lead-scoring-service",
+      "ml-serving": "279867549867.dkr.ecr.us-east-1.amazonaws.com/blostemiq-ml-serving",
+      "notification-service": "279867549867.dkr.ecr.us-east-1.amazonaws.com/blostemiq-notification-service",
+      "outreach-service": "279867549867.dkr.ecr.us-east-1.amazonaws.com/blostemiq-outreach-service",
+      "partner-service": "279867549867.dkr.ecr.us-east-1.amazonaws.com/blostemiq-partner-service",
+      "report-engine": "279867549867.dkr.ecr.us-east-1.amazonaws.com/blostemiq-report-engine",
+      "search-service": "279867549867.dkr.ecr.us-east-1.amazonaws.com/blostemiq-search-service"
+    }
+  },
+  "eks_cluster_endpoint": {
+    "sensitive": true,
+    "type": "string",
+    "value": "https://28A877FDE1F71435734491EA5A0F22C3.gr7.us-east-1.eks.amazonaws.com"
+  },
+  "eks_cluster_name": {
+    "sensitive": false,
+    "type": "string",
+    "value": "blostemiq-dev"
+  },
+  "rds_endpoint": {
+    "sensitive": true,
+    "type": "string",
+    "value": "blostemiq-dev.culc24yc0frz.us-east-1.rds.amazonaws.com:5432"
+  },
+  "redis_endpoint": {
+    "sensitive": true,
+    "type": "string",
+    "value": "blostemiq-dev-redis.t6n5iw.0001.use1.cache.amazonaws.com"
+  },
+  "s3_bucket_names": {
+    "sensitive": false,
+    "type": [
+      "object",
+      {
+        "data_lake": "string",
+        "ml_artifacts": "string",
+        "raw_events": "string",
+        "reports": "string"
+      }
+    ],
+    "value": {
+      "data_lake": "blostemiq-dev-data-lake-279867549867",
+      "ml_artifacts": "blostemiq-dev-ml-artifacts-279867549867",
+      "raw_events": "blostemiq-dev-raw-events-279867549867",
+      "reports": "blostemiq-dev-reports-279867549867"
+    }
+  },
+  "vpc_id": {
+    "sensitive": false,
+    "type": "string",
+    "value": "vpc-0513ee103f7f84c37"
+  }
+}

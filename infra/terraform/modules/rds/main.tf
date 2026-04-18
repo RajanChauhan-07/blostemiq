@@ -57,7 +57,8 @@ resource "aws_secretsmanager_secret_version" "db_password" {
 resource "aws_db_instance" "main" {
   identifier        = "blostemiq-${var.environment}"
   engine            = "postgres"
-  engine_version    = "16.2"
+  engine_version    = "16.3"
+
   instance_class    = var.instance_class
   allocated_storage = 20
   storage_type      = "gp3"

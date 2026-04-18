@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard, Users, Mail, BarChart2,
-  Search, Settings, Bell, LogOut, ChevronRight, Zap
+  Search, Settings, Bell, LogOut, ChevronRight, Zap, Brain
 } from 'lucide-react';
 import { ToastContainer } from '../../components/ui/ToastContainer';
 import { useRealtimeAlerts } from '../../lib/hooks/useRealtimeAlerts';
@@ -14,6 +14,7 @@ import { useNotificationStore } from '../../stores/notificationStore';
 const navItems = [
   { href: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { href: '/dashboard/partners', icon: Users, label: 'Partners' },
+  { href: '/dashboard/predict', icon: Brain, label: 'AI Explainer' },
   { href: '/dashboard/outreach', icon: Mail, label: 'AI Outreach' },
   { href: '/dashboard/analytics', icon: BarChart2, label: 'Analytics' },
   { href: '/dashboard/leads', icon: Zap, label: 'Lead Scoring' },

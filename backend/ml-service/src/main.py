@@ -43,7 +43,9 @@ app.add_middleware(
 )
 
 # ─── Global model ──────────────────────────────────────────
+import shap
 _model: xgb.Booster | None = None
+_explainer = None
 
 
 def _generate_training_data(n: int = 50_000):
@@ -134,6 +136,9 @@ async def train_model():
     auc = roc_auc_score(y_val, preds)
     logger.info(f"✅ Model trained! Val AUC: {auc:.4f}")
 
+    # Init SHAP explainer
+    global _explainer
+    _explainer = shap.TreeExplainer(_model)
 
 # ─── API Models ───────────────────────────────────────────
 class HealthDimensions(BaseModel):
@@ -152,6 +157,9 @@ class ChurnPrediction(BaseModel):
     churn_tier:        str   # "critical" | "high" | "medium" | "low"
     confidence:        float
     top_risk_factor:   str
+    shap_explanation_text: str | None = None
+    shap_features: list[str] | None = None
+    shap_values: list[float] | None = None
 
 
 class BatchRequest(BaseModel):
@@ -187,12 +195,47 @@ def _predict_one(dims: HealthDimensions) -> ChurnPrediction:
     # Confidence: distance from 0.5 boundary
     confidence = min(abs(prob - 0.5) * 2, 1.0)
 
+    # SHAP explanations
+    shap_values = []
+    features_list = ["recency","frequency","depth","trend","error_score","health"]
+    explanation = ""
+    
+    if _explainer is not None:
+        shap_out = _explainer.shap_values(dmat)
+        # shap_out for binary logistic is in log-odds.
+        val_array = shap_out[0]
+        base_val = float(_explainer.expected_value) if isinstance(_explainer.expected_value, (float, np.floating)) else float(_explainer.expected_value[0])
+        
+        # Zip features and values, sort by absolute impact
+        impacts = sorted(zip(features_list, val_array), key=lambda x: abs(x[1]), reverse=True)
+        shap_values = [float(v) for f, v in impacts]
+        features_list = [str(f) for f, v in impacts]
+        
+        # Generate human readable text based on top 2 risk factors pushing TOWARDS churn (positive SHAP on log-odds means higher churn prob if y=1 is churned)
+        top_positive_impacts = [f for f, v in impacts if v > 0][:2]
+        if top_positive_impacts:
+            factor_descriptions = {
+                "recency": f"API usage dropped (recency score {dims.recency_score:.1f}/25)",
+                "frequency": f"declining call trend (frequency score {dims.frequency_score:.1f}/25)",
+                "depth": f"low feature adoption (depth {dims.depth_score:.1f}/20)",
+                "trend": f"negative usage trend ({dims.trend_score:.1f}/20)",
+                "error_score": f"high error rate (error score {dims.error_score:.1f}/10)",
+                "health": f"overall composite health is low"
+            }
+            factors_text = " and ".join([factor_descriptions.get(f, f) for f in top_positive_impacts])
+            explanation = f"High churn risk driven primarily by {factors_text}."
+        else:
+            explanation = "Partner looks healthy across all primary dimensions."
+
     return ChurnPrediction(
         partner_id=dims.partner_id,
         churn_probability=round(prob, 4),
         churn_tier=tier,
         confidence=round(confidence, 3),
         top_risk_factor=top_risk,
+        shap_explanation_text=explanation,
+        shap_features=features_list,
+        shap_values=shap_values
     )
 
 
@@ -240,3 +283,25 @@ async def feature_importance():
     scores = _model.get_fscore()
     total = sum(scores.values())
     return {k: round(v / total, 4) for k, v in sorted(scores.items(), key=lambda x: -x[1])}
+
+
+@app.post("/shap")
+async def get_shap_values(dims: HealthDimensions):
+    if _model is None or _explainer is None:
+        raise HTTPException(503, "Model/Explainer not loaded yet")
+        
+    features = np.array([[
+        dims.recency_score, dims.frequency_score, dims.depth_score,
+        dims.trend_score, dims.error_score, dims.health_score,
+    ]])
+    dmat = xgb.DMatrix(features, feature_names=["recency","frequency","depth","trend","error_score","health"])
+    
+    shap_vals = _explainer.shap_values(dmat)[0]
+    base_val = float(_explainer.expected_value) if isinstance(_explainer.expected_value, (float, np.floating)) else float(_explainer.expected_value[0])
+    
+    return {
+        "partner_id": dims.partner_id,
+        "base_value": round(base_val, 4),
+        "features": ["recency","frequency","depth","trend","error_score","health"],
+        "shap_values": [round(float(v), 4) for v in shap_vals]
+    }

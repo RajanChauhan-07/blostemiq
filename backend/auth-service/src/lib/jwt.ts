@@ -1,13 +1,10 @@
 import jwt from 'jsonwebtoken';
-import fs from 'fs';
 import { v4 as uuidv4 } from 'uuid';
 import { prisma } from './prisma';
 import { createHash } from 'crypto';
 import { AppError } from './errors';
 
-// Load RS256 keypair
-const privateKey = fs.readFileSync(process.env.JWT_PRIVATE_KEY_PATH || './keys/private.pem', 'utf8');
-const publicKey = fs.readFileSync(process.env.JWT_PUBLIC_KEY_PATH || './keys/public.pem', 'utf8');
+const JWT_SECRET = process.env.JWT_SECRET || 'blostemiq-hackathon-super-secret-key';
 
 const ACCESS_TOKEN_TTL = '15m';
 const REFRESH_TOKEN_TTL_DAYS = 30;
@@ -28,11 +25,11 @@ export async function generateTokens(
   ipAddress: string,
   family: string = uuidv4()
 ) {
-  // Access token — RS256 signed, 15 minutes
+  // Access token — HS256 signed, 15 minutes
   const accessToken = jwt.sign(
     { sub: userId, orgId, role, type: 'access' },
-    privateKey,
-    { algorithm: 'RS256', expiresIn: ACCESS_TOKEN_TTL, issuer: 'blostemiq-auth' }
+    JWT_SECRET,
+    { algorithm: 'HS256', expiresIn: ACCESS_TOKEN_TTL, issuer: 'blostemiq-auth' }
   );
 
   // Refresh token — opaque random token stored hashed in DB
@@ -106,6 +103,3 @@ export async function revokeRefreshToken(rawToken: string) {
   });
 }
 
-export function getPublicKey() {
-  return publicKey;
-}
