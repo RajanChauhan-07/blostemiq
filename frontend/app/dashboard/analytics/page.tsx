@@ -1,61 +1,22 @@
 'use client';
 
-import { useState } from 'react';
-import { BarChart2, TrendingUp, TrendingDown, DollarSign, Users, Activity } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { BarChart2, TrendingDown, DollarSign, Users, Activity, Loader2, Wifi } from 'lucide-react';
 import {
-  AreaChart, Area, BarChart, Bar, LineChart, Line,
+  AreaChart, Area, BarChart, Bar,
   XAxis, YAxis, Tooltip, ResponsiveContainer, Cell,
-  PieChart, Pie, FunnelChart, Funnel, LabelList
+  PieChart, Pie,
 } from 'recharts';
 
-// ─── Cohort Heatmap Data ────────────────────────────────
-const cohortWeeks = ['W1', 'W2', 'W3', 'W4', 'W5', 'W6', 'W7', 'W8'];
-const cohorts = [
-  { name: 'Jan 24', values: [100, 92, 85, 78, 72, 68, 65, 63] },
-  { name: 'Feb 24', values: [100, 88, 76, 70, 64, 60, 57, 55] },
-  { name: 'Mar 24', values: [100, 95, 91, 88, 85, 83, 81, 80] },
-  { name: 'Apr 24', values: [100, 80, 68, 58, 50, 44, 40, 38] },
-  { name: 'May 24', values: [100, 90, 84, 79, 75, 72, 70, 68] },
-  { name: 'Jun 24', values: [100, 86, 74, 66, 60, 55, 52, 50] },
-  { name: 'Jul 24', values: [100, 93, 88, 84, 80, 78, 76, 75] },
-  { name: 'Aug 24', values: [100, 91, 85, 80, 76, 73, null, null] },
-];
-
-// ─── Revenue Data ────────────────────────────────────
-const revenueData = [
-  { month: 'Sep', arr: 4.2, new: 0.8 }, { month: 'Oct', arr: 4.8, new: 1.1 },
-  { month: 'Nov', arr: 5.5, new: 0.9 }, { month: 'Dec', arr: 6.1, new: 1.3 },
-  { month: 'Jan', arr: 6.8, new: 1.0 }, { month: 'Feb', arr: 7.4, new: 1.2 },
-  { month: 'Mar', arr: 8.2, new: 1.5 }, { month: 'Apr', arr: 8.9, new: 1.1 },
-];
-
-// ─── Onboarding Funnel ────────────────────────────────────
-const funnelData = [
-  { name: 'Signed Up', value: 120, fill: '#00d4ff' },
-  { name: 'API Key Created', value: 98, fill: '#0099cc' },
-  { name: 'First API Call', value: 72, fill: '#7c3aed' },
-  { name: 'Integration Live', value: 55, fill: '#10d982' },
-  { name: 'Production Traffic', value: 38, fill: '#f59e0b' },
-];
-
-// ─── Segment Breakdown ────────────────────────────────────
-const segments = [
-  { name: 'Payments', value: 8, color: '#00d4ff' },
-  { name: 'Lending', value: 4, color: '#7c3aed' },
-  { name: 'Neobank', value: 3, color: '#10d982' },
-  { name: 'WealthTech', value: 3, color: '#f59e0b' },
-  { name: 'BaaS/APIs', value: 4, color: '#ef4444' },
-  { name: 'Other', value: 2, color: '#6b7280' },
-];
-
-// ─── Health Distribution ────────────────────────────────────
-const healthDist = [
-  { range: '0-20', count: 1, fill: '#ef4444' },
-  { range: '21-40', count: 4, fill: '#f59e0b' },
-  { range: '41-60', count: 5, fill: '#f59e0b' },
-  { range: '61-80', count: 6, fill: '#10d982' },
-  { range: '81-100', count: 8, fill: '#00d4ff' },
-];
+// Fallback data if API is unreachable
+const FALLBACK = {
+  kpis: { total_partners: 20, at_risk_partners: 4, total_mrr: 566000, avg_health: 64.2, churn_rate_pct: 20, api_calls_today: 147892 },
+  revenue: { monthly: [], current_arr: 6792000 },
+  funnel: { steps: [] },
+  segments: { segments: [] },
+  healthDist: { distribution: [] },
+  cohorts: { cohorts: {} },
+};
 
 function getHeatColor(val: number | null) {
   if (val === null) return 'var(--bg-surface)';
@@ -65,22 +26,92 @@ function getHeatColor(val: number | null) {
   return 'rgba(239, 68, 68, 0.5)';
 }
 
+const FUNNEL_COLORS = ['#00d4ff', '#0099cc', '#7c3aed', '#10d982', '#f59e0b', '#ef4444', '#6b7280'];
+const SEG_COLORS = ['#00d4ff', '#7c3aed', '#10d982', '#f59e0b', '#ef4444', '#6b7280'];
+const HEALTH_COLORS: Record<string, string> = { Critical: '#ef4444', Poor: '#f59e0b', Fair: '#f59e0b', Good: '#10d982', Excellent: '#00d4ff' };
+
 export default function AnalyticsPage() {
+  const [kpis, setKpis] = useState<any>(null);
+  const [revenue, setRevenue] = useState<any>(null);
+  const [funnel, setFunnel] = useState<any>(null);
+  const [segments, setSegments] = useState<any>(null);
+  const [healthDist, setHealthDist] = useState<any>(null);
+  const [cohorts, setCohorts] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [live, setLive] = useState(false);
+
+  useEffect(() => {
+    const fetchAll = async () => {
+      try {
+        const [kR, rR, fR, sR, hR, cR] = await Promise.all([
+          fetch('/api/analytics/kpis'),
+          fetch('/api/analytics/revenue'),
+          fetch('/api/analytics/funnel'),
+          fetch('/api/analytics/segments'),
+          fetch('/api/analytics/health-distribution'),
+          fetch('/api/analytics/cohorts'),
+        ]);
+        if (kR.ok) { setKpis(await kR.json()); setLive(true); } else setKpis(FALLBACK.kpis);
+        if (rR.ok) setRevenue(await rR.json()); else setRevenue(FALLBACK.revenue);
+        if (fR.ok) setFunnel(await fR.json()); else setFunnel(FALLBACK.funnel);
+        if (sR.ok) setSegments(await sR.json()); else setSegments(FALLBACK.segments);
+        if (hR.ok) setHealthDist(await hR.json()); else setHealthDist(FALLBACK.healthDist);
+        if (cR.ok) setCohorts(await cR.json()); else setCohorts(FALLBACK.cohorts);
+      } catch {
+        setKpis(FALLBACK.kpis);
+        setRevenue(FALLBACK.revenue);
+        setFunnel(FALLBACK.funnel);
+        setSegments(FALLBACK.segments);
+        setHealthDist(FALLBACK.healthDist);
+        setCohorts(FALLBACK.cohorts);
+      }
+      setLoading(false);
+    };
+    fetchAll();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center" style={{ minHeight: 400 }}>
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 size={32} className="animate-spin" style={{ color: 'var(--accent)' }} />
+          <span className="text-sm" style={{ color: 'var(--text-muted)' }}>Loading analytics from API...</span>
+        </div>
+      </div>
+    );
+  }
+
+  const revChart = revenue?.monthly?.map((m: any) => ({
+    month: m.month.split('-')[1],
+    arr: Math.round(m.total_mrr / 100000 * 10) / 10,
+    new: Math.round(m.new_mrr / 100000 * 10) / 10,
+  })) || [];
+
+  const cohortEntries = Object.values(cohorts?.cohorts || {}) as any[];
+  const cohortWeeks = ['W1', 'W2', 'W3', 'W4', 'W5', 'W6', 'W7', 'W8', 'W9', 'W10', 'W11', 'W12'];
+
   return (
     <div className="max-w-7xl mx-auto space-y-6 pb-20">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold flex items-center gap-2"><BarChart2 className="text-[var(--accent)]" /> Analytics & Insights</h1>
-        <p className="text-sm mt-1" style={{ color: 'var(--text-secondary)' }}>Portfolio performance, cohort retention, and revenue attribution.</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold flex items-center gap-2"><BarChart2 className="text-[var(--accent)]" /> Analytics & Insights</h1>
+          <p className="text-sm mt-1" style={{ color: 'var(--text-secondary)' }}>Portfolio performance, cohort retention, and revenue attribution.</p>
+        </div>
+        {live && (
+          <span className="badge-green text-xs px-3 py-1 rounded-full flex items-center gap-1.5">
+            <Wifi size={10} /> Live from analytics-service
+          </span>
+        )}
       </div>
 
       {/* KPI Row */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
-          { icon: DollarSign, label: 'Total ARR', value: '₹1.07Cr', delta: '+18% QoQ', color: 'var(--green)' },
-          { icon: Users, label: 'Active Partners', value: '24', delta: '+6 this quarter', color: 'var(--accent)' },
-          { icon: TrendingDown, label: 'Churn Rate', value: '8.3%', delta: '↓ 2.1% vs Q3', color: 'var(--green)' },
-          { icon: Activity, label: 'Avg Health', value: '64.2', delta: '↑ 3pts this month', color: 'var(--yellow)' },
+          { icon: DollarSign, label: 'Total ARR', value: `₹${((kpis?.total_mrr || 0) * 12 / 100000).toFixed(1)}L`, delta: `${kpis?.total_partners} partners`, color: 'var(--green)' },
+          { icon: Users, label: 'Active Partners', value: String(kpis?.total_partners || 0), delta: `${kpis?.at_risk_partners} at risk`, color: 'var(--accent)' },
+          { icon: TrendingDown, label: 'Churn Rate', value: `${kpis?.churn_rate_pct || 0}%`, delta: `${kpis?.at_risk_partners} flagged`, color: kpis?.churn_rate_pct > 15 ? 'var(--red)' : 'var(--green)' },
+          { icon: Activity, label: 'Avg Health', value: String(kpis?.avg_health || 0), delta: `${kpis?.api_calls_today?.toLocaleString()} API calls today`, color: 'var(--yellow)' },
         ].map(({ icon: Icon, label, value, delta, color }) => (
           <div key={label} className="glass rounded-xl p-5 glass-hover">
             <div className="flex items-center justify-between mb-3">
@@ -101,7 +132,7 @@ export default function AnalyticsPage() {
           <h3 className="text-sm font-semibold mb-4">Revenue Growth (₹ Lakhs)</h3>
           <div style={{ height: 220 }}>
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={revenueData}>
+              <AreaChart data={revChart}>
                 <defs>
                   <linearGradient id="revGrad" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="var(--accent)" stopOpacity={0.3} />
@@ -123,18 +154,25 @@ export default function AnalyticsPage() {
           <h3 className="text-sm font-semibold mb-4">Health Score Distribution</h3>
           <div style={{ height: 220 }}>
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={healthDist}>
+              <BarChart data={healthDist?.distribution || []}>
                 <XAxis dataKey="range" tick={{ fontSize: 11, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} />
                 <YAxis tick={{ fontSize: 11, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} />
                 <Tooltip contentStyle={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 12 }} />
                 <Bar dataKey="count" radius={[4, 4, 0, 0]} barSize={32}>
-                  {healthDist.map((entry, i) => (
-                    <Cell key={i} fill={entry.fill} />
+                  {(healthDist?.distribution || []).map((entry: any, i: number) => (
+                    <Cell key={i} fill={HEALTH_COLORS[entry.label] || '#6b7280'} />
                   ))}
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
           </div>
+          {healthDist && (
+            <div className="flex gap-4 mt-2 text-xs" style={{ color: 'var(--text-muted)' }}>
+              <span>Mean: {healthDist.mean}</span>
+              <span>Median: {healthDist.median}</span>
+              <span>Std: {healthDist.std}</span>
+            </div>
+          )}
         </div>
 
         {/* Cohort Retention Heatmap */}
@@ -146,19 +184,19 @@ export default function AnalyticsPage() {
                 <tr>
                   <th className="text-left px-3 py-2 font-medium" style={{ color: 'var(--text-muted)' }}>Cohort</th>
                   {cohortWeeks.map(w => (
-                    <th key={w} className="text-center px-3 py-2 font-medium" style={{ color: 'var(--text-muted)' }}>{w}</th>
+                    <th key={w} className="text-center px-2 py-2 font-medium" style={{ color: 'var(--text-muted)' }}>{w}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {cohorts.map(c => (
-                  <tr key={c.name}>
-                    <td className="px-3 py-1.5 font-medium" style={{ color: 'var(--text-secondary)' }}>{c.name}</td>
-                    {c.values.map((v, i) => (
+                {cohortEntries.map((c: any) => (
+                  <tr key={c.month}>
+                    <td className="px-3 py-1.5 font-medium" style={{ color: 'var(--text-secondary)' }}>{c.month}</td>
+                    {(c.retention_pct || []).map((v: number, i: number) => (
                       <td key={i} className="text-center px-1 py-1">
-                        <div className="rounded-md py-1.5 font-mono text-xs transition-all"
-                          style={{ background: getHeatColor(v), color: v !== null ? 'white' : 'transparent' }}>
-                          {v !== null ? `${v}%` : ''}
+                        <div className="rounded-md py-1.5 font-mono text-xs"
+                          style={{ background: getHeatColor(v), color: 'white' }}>
+                          {v}%
                         </div>
                       </td>
                     ))}
@@ -187,23 +225,28 @@ export default function AnalyticsPage() {
         <div className="glass rounded-2xl p-6">
           <h3 className="text-sm font-semibold mb-4">Onboarding Funnel (Last 90d)</h3>
           <div className="space-y-3">
-            {funnelData.map((step, i) => (
+            {(funnel?.steps || []).map((step: any, i: number) => (
               <div key={step.name}>
                 <div className="flex justify-between text-xs mb-1">
                   <span style={{ color: 'var(--text-secondary)' }}>{step.name}</span>
-                  <span className="font-mono" style={{ color: step.fill }}>{step.value}</span>
+                  <span className="font-mono" style={{ color: FUNNEL_COLORS[i] }}>{step.count}</span>
                 </div>
                 <div className="h-2 rounded-full" style={{ background: 'var(--bg-elevated)' }}>
-                  <div className="h-full rounded-full transition-all" style={{ width: `${(step.value / 120) * 100}%`, background: step.fill }} />
+                  <div className="h-full rounded-full transition-all" style={{ width: `${step.pct}%`, background: FUNNEL_COLORS[i] }} />
                 </div>
-                {i < funnelData.length - 1 && (
+                {i < (funnel?.steps?.length || 0) - 1 && (
                   <div className="text-xs text-right mt-0.5" style={{ color: 'var(--text-muted)' }}>
-                    {Math.round((funnelData[i + 1].value / step.value) * 100)}% conversion
+                    {Math.round((funnel.steps[i + 1].count / step.count) * 100)}% conversion
                   </div>
                 )}
               </div>
             ))}
           </div>
+          {funnel?.avg_time_to_first_call_hours && (
+            <div className="mt-4 text-xs" style={{ color: 'var(--text-muted)' }}>
+              Avg time to first API call: {funnel.avg_time_to_first_call_hours}h • To paying: {funnel.avg_time_to_paying_days}d
+            </div>
+          )}
         </div>
 
         {/* Segment Breakdown */}
@@ -212,9 +255,9 @@ export default function AnalyticsPage() {
           <div className="flex items-center justify-center" style={{ height: 200 }}>
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
-                <Pie data={segments} cx="50%" cy="50%" innerRadius={50} outerRadius={80} dataKey="value" paddingAngle={3} stroke="none">
-                  {segments.map((s, i) => (
-                    <Cell key={i} fill={s.color} />
+                <Pie data={segments?.segments || []} cx="50%" cy="50%" innerRadius={50} outerRadius={80} dataKey="count" paddingAngle={3} stroke="none" nameKey="name">
+                  {(segments?.segments || []).map((_: any, i: number) => (
+                    <Cell key={i} fill={SEG_COLORS[i % SEG_COLORS.length]} />
                   ))}
                 </Pie>
                 <Tooltip contentStyle={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 12 }} />
@@ -222,10 +265,10 @@ export default function AnalyticsPage() {
             </ResponsiveContainer>
           </div>
           <div className="grid grid-cols-3 gap-2 mt-2">
-            {segments.map(s => (
+            {(segments?.segments || []).map((s: any, i: number) => (
               <div key={s.name} className="flex items-center gap-1.5 text-xs">
-                <div className="w-2 h-2 rounded-full" style={{ background: s.color }} />
-                <span style={{ color: 'var(--text-secondary)' }}>{s.name} ({s.value})</span>
+                <div className="w-2 h-2 rounded-full" style={{ background: SEG_COLORS[i % SEG_COLORS.length] }} />
+                <span style={{ color: 'var(--text-secondary)' }}>{s.name} ({s.count})</span>
               </div>
             ))}
           </div>
