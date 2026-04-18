@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { TrendingDown, TrendingUp, AlertTriangle, Users, Zap, BarChart2 } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { TrendingDown, TrendingUp, AlertTriangle, Users, Zap, BarChart2, FileDown, Loader2 } from 'lucide-react';
 import { LineChart, Line, AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, RadialBarChart, RadialBar } from 'recharts';
 
 // ─── Mock data ────────────────────────────────────────────
@@ -80,6 +80,29 @@ function AlertRow({ alert }: { alert: typeof alerts[0] }) {
 export default function DashboardPage() {
   const [activeTab, setActiveTab] = useState<'all' | 'at_risk'>('all');
   const filtered = activeTab === 'at_risk' ? partners.filter(p => p.status === 'at_risk') : partners;
+  const [kpis, setKpis] = useState<any>(null);
+  const [downloading, setDownloading] = useState(false);
+
+  useEffect(() => {
+    fetch('/api/analytics/kpis').then(r => r.ok ? r.json() : null).then(setKpis).catch(() => {});
+  }, []);
+
+  const handleDownloadPDF = async () => {
+    setDownloading(true);
+    try {
+      const res = await fetch('/api/reports/generate');
+      if (res.ok) {
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `BlostemIQ_Report_${new Date().toISOString().split('T')[0]}.pdf`;
+        a.click();
+        URL.revokeObjectURL(url);
+      }
+    } catch (e) { console.error(e); }
+    setDownloading(false);
+  };
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
@@ -88,20 +111,27 @@ export default function DashboardPage() {
         <div>
           <h1 className="text-2xl font-bold">Partner Intelligence</h1>
           <p className="text-sm mt-0.5" style={{ color: 'var(--text-secondary)' }}>
-            Last updated <span style={{ color: 'var(--accent)' }}>just now</span> · 30 partners monitored
+            Last updated <span style={{ color: 'var(--accent)' }}>just now</span> · {kpis?.total_partners || 20} partners monitored
           </p>
         </div>
-        <button className="btn-primary px-4 py-2 rounded-lg text-sm font-medium">
-          + Add partner
-        </button>
+        <div className="flex gap-2">
+          <button onClick={handleDownloadPDF} disabled={downloading}
+            className="glass glass-hover px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2">
+            {downloading ? <Loader2 size={14} className="animate-spin" /> : <FileDown size={14} />}
+            {downloading ? 'Generating...' : 'Download PDF'}
+          </button>
+          <button className="btn-primary px-4 py-2 rounded-lg text-sm font-medium">
+            + Add partner
+          </button>
+        </div>
       </div>
 
       {/* ─── Stats row ─────────────────────────────── */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <StatCard icon={Users} label="Active partners" value="26" delta="4 onboarding" color="var(--accent)" />
-        <StatCard icon={AlertTriangle} label="At risk" value="3" delta="↑ 2 this week" color="var(--red)" />
-        <StatCard icon={TrendingDown} label="Avg health score" value="68" delta="↓ 4pts vs last week" color="var(--yellow)" />
-        <StatCard icon={Zap} label="Alerts today" value="7" delta="3 critical" color="var(--yellow)" />
+        <StatCard icon={Users} label="Active partners" value={String(kpis?.total_partners || 26)} delta={`${kpis?.at_risk_partners || 4} at risk`} color="var(--accent)" />
+        <StatCard icon={AlertTriangle} label="At risk" value={String(kpis?.at_risk_partners || 3)} delta="flagged by ML" color="var(--red)" />
+        <StatCard icon={TrendingDown} label="Avg health score" value={String(kpis?.avg_health || 68)} delta={`${(kpis?.api_calls_today || 0).toLocaleString()} API calls today`} color="var(--yellow)" />
+        <StatCard icon={Zap} label="Alerts today" value={String(kpis?.alerts_today || 7)} delta={`NPS: ${kpis?.nps_score || 72}`} color="var(--yellow)" />
       </div>
 
       {/* ─── Main grid ─────────────────────────────── */}

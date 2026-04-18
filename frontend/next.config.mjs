@@ -18,6 +18,7 @@ const nextConfig = {
       { source: '/api/leads/:path*', destination: 'http://lead-scoring-service.blostemiq.svc.cluster.local:8002/:path*' },
       { source: '/api/outreach/:path*', destination: 'http://outreach-service.blostemiq.svc.cluster.local:8003/:path*' },
       { source: '/api/analytics/:path*', destination: 'http://analytics-service.blostemiq.svc.cluster.local:8004/:path*' },
+      { source: '/api/reports/:path*', destination: 'http://report-service.blostemiq.svc.cluster.local:8005/:path*' },
       { source: '/ws/:path*', destination: 'http://notification-service.blostemiq.svc.cluster.local:3004/:path*' },
     ];
   },
