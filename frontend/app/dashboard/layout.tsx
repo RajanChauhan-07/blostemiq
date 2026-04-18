@@ -7,6 +7,7 @@ import {
   Search, Settings, Bell, LogOut, ChevronRight, Zap, Brain
 } from 'lucide-react';
 import { ToastContainer } from '../../components/ui/ToastContainer';
+import { VoiceBriefing } from '../../components/voice/VoiceBriefing';
 import { useRealtimeAlerts } from '../../lib/hooks/useRealtimeAlerts';
 import { useNotificationStore } from '../../stores/notificationStore';
 
@@ -88,13 +89,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <header className="h-16 shrink-0 flex items-center justify-between px-6 border-b"
           style={{ background: 'var(--bg-surface)', borderColor: 'var(--border)' }}>
           {/* Voice briefing player */}
-          <div className="flex items-center gap-3">
-            <div className="glass rounded-xl px-4 py-2 flex items-center gap-3 text-sm">
-              <div className="w-2 h-2 rounded-full animate-pulse" style={{ background: 'var(--accent)' }} />
-              <span style={{ color: 'var(--text-secondary)' }}>Today&apos;s briefing ready</span>
-              <button className="text-xs btn-primary px-2 py-1 rounded-md">▶ Play</button>
-            </div>
-          </div>
+          <VoiceBriefing />
 
           {/* Right actions */}
           <div className="flex items-center gap-3">
