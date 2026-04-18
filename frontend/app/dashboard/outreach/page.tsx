@@ -82,7 +82,7 @@ export default function OutreachPage() {
           AI Outreach Composer
         </h1>
         <p className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>
-          Real AI-generated re-engagement sequences • Powered by Qwen 2.5 via Bytez
+          Real AI-generated re-engagement sequences • Powered by Llama 3.1 via Groq
         </p>
       </div>
 
@@ -150,7 +150,7 @@ export default function OutreachPage() {
               </div>
               <h3 className="text-lg font-semibold mb-2">AI is composing emails...</h3>
               <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
-                Qwen 2.5 is analyzing {selected.name}'s data and writing a personalized sequence
+                Llama 3.1 via Groq is analyzing {selected.name}'s data and writing a personalized sequence
               </p>
               <div className="mt-4 flex gap-1">
                 {[0, 1, 2].map(i => (
