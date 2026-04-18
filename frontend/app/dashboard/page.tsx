@@ -92,12 +92,17 @@ export default function DashboardPage() {
     try {
       const res = await fetch('/api/reports/generate');
       if (res.ok) {
-        const blob = await res.blob();
+        const arrayBuffer = await res.arrayBuffer();
+        const blob = new Blob([arrayBuffer], { type: 'application/pdf' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `BlostemIQ_Report_${new Date().toISOString().split('T')[0]}.pdf`;
+        const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+        const now = new Date();
+        a.download = `BlostemIQ_Partner_Report_${months[now.getMonth()]}_${now.getFullYear()}.pdf`;
+        document.body.appendChild(a);
         a.click();
+        document.body.removeChild(a);
         URL.revokeObjectURL(url);
       }
     } catch (e) { console.error(e); }

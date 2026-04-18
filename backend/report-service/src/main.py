@@ -1,5 +1,6 @@
 from fastapi import FastAPI
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, Response
+from fastapi.middleware.cors import CORSMiddleware
 import io
 import numpy as np
 from datetime import datetime
@@ -18,6 +19,14 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = FastAPI(title="Report Service", version="1.0.0")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+    expose_headers=["Content-Disposition", "Content-Type", "Content-Length"],
+)
 
 # ─── Brand Colors ─────────────────────────────────────
 BRAND_DARK = colors.HexColor("#0a0f1c")
@@ -251,11 +260,18 @@ async def generate_report():
     """Generate and return a PDF partner intelligence report"""
     logger.info("Generating PDF report...")
     pdf_bytes = build_pdf()
-    logger.info(f"PDF generated: {len(pdf_bytes)} bytes")
-    return StreamingResponse(
-        io.BytesIO(pdf_bytes),
+    now = datetime.now()
+    filename = f"BlostemIQ_Partner_Report_{now.strftime('%B_%Y')}.pdf"
+    logger.info(f"PDF generated: {len(pdf_bytes)} bytes, filename: {filename}")
+    return Response(
+        content=pdf_bytes,
         media_type="application/pdf",
-        headers={"Content-Disposition": f"attachment; filename=BlostemIQ_Report_{datetime.now().strftime('%Y%m%d')}.pdf"},
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "Content-Type": "application/pdf",
+            "Content-Length": str(len(pdf_bytes)),
+            "X-Filename": filename,
+        },
     )
 
 @app.get("/health")
