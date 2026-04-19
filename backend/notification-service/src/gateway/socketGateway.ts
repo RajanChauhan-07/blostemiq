@@ -32,8 +32,8 @@ function verifyToken(token: string): { userId: string; orgId: string } | null {
       const payload = jwt.verify(token, pubKey, { algorithms: ['RS256'] }) as jwt.JwtPayload;
       return { userId: payload.sub!, orgId: payload.orgId };
     }
-    // Fallback: HS256 for dev without keypair
-    const secret = process.env.JWT_SECRET || 'blostemiq_dev_secret';
+    const secret = process.env.JWT_SECRET;
+    if (!secret) return null;
     const payload = jwt.verify(token, secret) as jwt.JwtPayload;
     return { userId: payload.sub!, orgId: payload.orgId };
   } catch {

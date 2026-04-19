@@ -3,16 +3,18 @@
   "version": "1.0.0",
   "private": true,
   "workspaces": [
-    "apps/frontend",
-    "apps/auth-service",
-    "apps/partner-service",
-    "apps/notification-service",
-    "apps/search-service",
-    "apps/billing-service"
+    "frontend",
+    "backend/auth-service",
+    "backend/partner-service",
+    "backend/notification-service",
+    "backend/billing-service"
   ],
   "scripts": {
     "dev": "docker compose up --build",
-    "dev:frontend": "npm run dev --workspace=apps/frontend",
+    "dev:frontend": "npm run dev --workspace=frontend",
+    "db:bootstrap": "./scripts/bootstrap-db.sh",
+    "db:retention": "./scripts/retention-cleanup.sh",
+    "smoke:local": "./scripts/smoke-test-local.sh",
     "test": "npm run test --workspaces --if-present",
     "lint": "npm run lint --workspaces --if-present"
   },

@@ -1,8 +1,6 @@
 # BlostemIQ — Local Development Stack
 # Usage: docker compose up -d
 
-version: '3.9'
-
 services:
   # ─── Data Stores ─────────────────────────────────
   postgres:
@@ -15,6 +13,7 @@ services:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+      - ./database/schemas/init-db.sql:/docker-entrypoint-initdb.d/001-init-db.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U blostemiq"]
       interval: 5s
@@ -61,6 +60,7 @@ services:
     environment:
       DATABASE_URL: postgresql://blostemiq:blostemiq_dev_2026@postgres:5432/blostemiq
       REDIS_URL: redis://redis:6379
+      JWT_SECRET: dev-jwt-secret-blostemiq-2026
       PORT: "3002"
     depends_on:
       postgres:
@@ -93,10 +93,72 @@ services:
     ports:
       - "8003:8003"
     environment:
+      DATABASE_URL: postgresql://blostemiq:blostemiq_dev_2026@postgres:5432/blostemiq
+      JWT_SECRET: dev-jwt-secret-blostemiq-2026
       PORT: "8003"
-      BYTEZ_API_KEY: ${BYTEZ_API_KEY:-}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
       ELEVENLABS_API_KEY: ${ELEVENLABS_API_KEY:-}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USERNAME: ${SMTP_USERNAME:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_USE_TLS: ${SMTP_USE_TLS:-true}
+      SMTP_FROM_EMAIL: ${SMTP_FROM_EMAIL:-}
+      SMTP_FROM_NAME: ${SMTP_FROM_NAME:-BlostemIQ}
       LOG_LEVEL: INFO
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  billing-service:
+    build:
+      context: ./backend/billing-service
+      dockerfile: Dockerfile.dev
+    ports:
+      - "3005:3005"
+    environment:
+      DATABASE_URL: postgresql://blostemiq:blostemiq_dev_2026@postgres:5432/blostemiq
+      JWT_SECRET: dev-jwt-secret-blostemiq-2026
+      PORT: "3005"
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+      STRIPE_PRICE_GROWTH: ${STRIPE_PRICE_GROWTH:-}
+      STRIPE_PRICE_ENTERPRISE: ${STRIPE_PRICE_ENTERPRISE:-}
+      BILLING_SUCCESS_URL: ${BILLING_SUCCESS_URL:-http://localhost:3000/dashboard/settings}
+      BILLING_CANCEL_URL: ${BILLING_CANCEL_URL:-http://localhost:3000/dashboard/settings}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  analytics-service:
+    build:
+      context: ./backend/analytics-service
+      dockerfile: Dockerfile.dev
+    ports:
+      - "8004:8004"
+    environment:
+      DATABASE_URL: postgresql://blostemiq:blostemiq_dev_2026@postgres:5432/blostemiq
+      JWT_SECRET: dev-jwt-secret-blostemiq-2026
+      PORT: "8004"
+      LOG_LEVEL: INFO
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  report-service:
+    build:
+      context: ./backend/report-service
+      dockerfile: Dockerfile.dev
+    ports:
+      - "8005:8005"
+    environment:
+      DATABASE_URL: postgresql://blostemiq:blostemiq_dev_2026@postgres:5432/blostemiq
+      JWT_SECRET: dev-jwt-secret-blostemiq-2026
+      PORT: "8005"
+      LOG_LEVEL: INFO
+    depends_on:
+      postgres:
+        condition: service_healthy
 
   notification-service:
     build:
@@ -106,6 +168,7 @@ services:
       - "3004:3004"
     environment:
       REDIS_URL: redis://redis:6379
+      JWT_SECRET: dev-jwt-secret-blostemiq-2026
       PORT: "3004"
     depends_on:
       redis:
@@ -125,6 +188,10 @@ services:
       - auth-service
       - partner-service
       - ml-service
+      - analytics-service
+      - report-service
+      - notification-service
+      - billing-service
 
 volumes:
   pgdata:

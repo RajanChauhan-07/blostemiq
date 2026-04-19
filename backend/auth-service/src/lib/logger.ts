@@ -1,6 +1,6 @@
 import winston from 'winston';
 
-export const logger = winston.createLogger({
+const baseLogger = winston.createLogger({
   level: process.env.LOG_LEVEL || 'info',
   format: winston.format.combine(
     winston.format.timestamp(),
@@ -15,3 +15,21 @@ export const logger = winston.createLogger({
   ),
   transports: [new winston.transports.Console()],
 });
+
+function createLogMethod(level: 'debug' | 'info' | 'warn' | 'error') {
+  return (messageOrMeta: unknown, maybeMessage?: string) => {
+    if (typeof messageOrMeta === 'string') {
+      baseLogger.log(level, messageOrMeta);
+      return;
+    }
+
+    baseLogger.log(level, maybeMessage ?? '', messageOrMeta as object);
+  };
+}
+
+export const logger = {
+  debug: createLogMethod('debug'),
+  info: createLogMethod('info'),
+  warn: createLogMethod('warn'),
+  error: createLogMethod('error'),
+};

@@ -12,7 +12,7 @@ model organizations {
   id         String   @id @default(uuid())
   name       String
   slug       String   @unique
-  plan       String   @default("free")
+  plan       String   @default("basic")
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
   memberships memberships[]
@@ -47,15 +47,17 @@ model memberships {
 
 model refresh_tokens {
   id          String   @id @default(uuid())
-  token       String   @unique
+  token_hash  String   @unique
+  family      String
   user_id     String
-  device_info String?
+  device_fp   String?
   ip_address  String?
   expires_at  DateTime
   revoked_at  DateTime?
   created_at  DateTime @default(now())
   users       users    @relation(fields: [user_id], references: [id], onDelete: Cascade)
 
+  @@index([family])
   @@index([user_id])
 }
 

@@ -83,10 +83,9 @@ blostemiq/
 ## 🚀 Start Local Dev (1 Command)
 
 ```bash
-# One-time: generate JWT keypair
-mkdir -p keys && openssl genrsa -out keys/private.pem 2048 && openssl rsa -in keys/private.pem -pubout -out keys/public.pem
-
-# Start everything
+# Fresh local DBs auto-run database/schemas/init-db.sql on first boot.
+# For an existing database, you can also run:
+# DATABASE_URL=postgresql://... npm run db:bootstrap
 docker compose up --build
 ```
 

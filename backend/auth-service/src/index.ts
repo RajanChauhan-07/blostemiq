@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
+import { rateLimit } from 'express-rate-limit';
 import { authRouter } from './routes/auth';
 import { orgRouter } from './routes/org';
 import { errorHandler } from './middleware/errorHandler';
@@ -18,10 +19,16 @@ app.use(cors({
 app.use(cookieParser());
 app.use(express.json({ limit: '10kb' }));
 
+const orgLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 200,
+  message: { error: 'Too many organization requests. Try again shortly.' }
+});
+
 // ─── Routes ──────────────────────────────────────────────
 app.get('/health', (_req, res) => res.json({ status: 'ok', service: 'auth-service' }));
 app.use('/auth', authRouter);
-app.use('/org', orgRouter);
+app.use('/org', orgLimiter, orgRouter);
 
 // ─── Error Handler ───────────────────────────────────────
 app.use(errorHandler);

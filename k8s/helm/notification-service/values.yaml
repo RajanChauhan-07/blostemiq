@@ -1,4 +1,4 @@
-replicaCount: 2
+replicaCount: 1
 
 image:
   repository: 279867549867.dkr.ecr.us-east-1.amazonaws.com/blostemiq-notification-service
@@ -22,14 +22,13 @@ env:
   PORT: "3004"
   LOG_LEVEL: info
   AWS_REGION: us-east-1
-  ALLOWED_ORIGINS: "http://blostemiq.ddns.net,https://blostemiq.ddns.net,http://localhost:3000"
-  REDIS_URL: "redis://blostemiq-dev-redis.t6n5iw.0001.use1.cache.amazonaws.com:6379"
+  ALLOWED_ORIGINS: "https://blostemiq.myddns.me,http://localhost:3000"
   KAFKA_BROKERS: "localhost:9092"
 
 
 hpa:
   enabled: true
-  minReplicas: 2
+  minReplicas: 1
   maxReplicas: 10
   targetCPUUtilizationPercentage: 60
 

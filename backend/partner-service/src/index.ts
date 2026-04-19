@@ -1,7 +1,9 @@
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
+import { rateLimit } from 'express-rate-limit';
 import { errorHandler } from './middleware/errorHandler';
+import { requireAuth, requireIngestAuth } from './middleware/auth';
 import { logger } from './lib/logger';
 
 const app = express();
@@ -9,6 +11,20 @@ const app = express();
 app.use(helmet());
 app.use(cors({ origin: process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:3000'], credentials: true }));
 app.use(express.json({ limit: '1mb' }));
+
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 300,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const ingestLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 600,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 
 // ─── Health (must work even before DB connects) ───────────
 app.get('/health', (_req, res) => res.json({
@@ -23,9 +39,9 @@ async function mountRoutes() {
     const { partnersRouter } = await import('./routes/partners');
     const { ingestRouter }   = await import('./routes/ingest');
     const { healthRouter }   = await import('./routes/health');
-    app.use('/partners',     partnersRouter);
-    app.use('/ingest',       ingestRouter);
-    app.use('/health-scores', healthRouter);
+    app.use('/partners', apiLimiter, requireAuth, partnersRouter);
+    app.use('/ingest', ingestLimiter, requireIngestAuth, ingestRouter);
+    app.use('/health-scores', apiLimiter, requireAuth, healthRouter);
     logger.info('✅ Routes mounted');
   } catch (err) {
     logger.warn({ err }, '⚠️  Some routes failed to mount — check DB/Kafka env vars');

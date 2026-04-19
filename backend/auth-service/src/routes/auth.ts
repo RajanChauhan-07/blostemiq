@@ -1,4 +1,5 @@
 import { Router, Request, Response } from 'express';
+import { Prisma } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma';
@@ -8,6 +9,8 @@ import { logger } from '../lib/logger';
 import { AppError } from '../lib/errors';
 import { rateLimit } from 'express-rate-limit';
 import { getDeviceFingerprint } from '../lib/fingerprint';
+import { syncDefaultEntitlements } from '../lib/entitlements';
+import { requireAuth, type AuthenticatedRequest } from '../middleware/auth';
 
 export const authRouter = Router();
 
@@ -52,13 +55,14 @@ authRouter.post('/signup', authLimiter, async (req: Request, res: Response) => {
     + '-' + Math.random().toString(36).slice(2, 6);
 
   // Create user + org + membership in transaction
-  const { user, org } = await prisma.$transaction(async (tx) => {
+  const { user, org } = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     const newUser = await tx.users.create({
       data: { email, hashed_password: hashedPassword, full_name: fullName }
     });
     const newOrg = await tx.organizations.create({
       data: { name: orgName, slug }
     });
+    await syncDefaultEntitlements(tx, newOrg.id, newOrg.plan);
     await tx.memberships.create({
       data: { user_id: newUser.id, org_id: newOrg.id, role: 'admin' }
     });
@@ -182,14 +186,9 @@ authRouter.post('/signout', async (req: Request, res: Response) => {
 });
 
 // ─── GET /auth/me ─────────────────────────────────────────
-authRouter.get('/me', async (req: Request, res: Response) => {
-  const authHeader = req.headers.authorization;
-  if (!authHeader?.startsWith('Bearer ')) throw new AppError('Unauthorized', 401);
-
-  // JWT is verified by Kong upstream — we just decode the payload here
-  const token = authHeader.split(' ')[1];
-  const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString());
-
+authRouter.get('/me', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  const payload = req.auth;
+  if (!payload) throw new AppError('Unauthorized', 401);
   const user = await prisma.users.findUnique({
     where: { id: payload.sub },
     select: { id: true, email: true, full_name: true, avatar_url: true, created_at: true }

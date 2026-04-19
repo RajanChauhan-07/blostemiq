@@ -1,17 +1,18 @@
-import { Router, Request, Response } from 'express';
+import { Router, Response } from 'express';
 import { computeHealthScore } from '../lib/healthScore';
 import { AppError } from '../middleware/errorHandler';
 import { getProducer, TOPICS } from '../lib/kafka';
 import { logger } from '../lib/logger';
+import type { AuthenticatedRequest } from '../middleware/auth';
 
 export const healthRouter = Router();
 
 const CHURN_ALERT_THRESHOLD = 0.75; // 75% churn probability → fire alert
 
 // ─── GET /health-scores/:partnerId ───────────────────────
-healthRouter.get('/:partnerId', async (req: Request, res: Response) => {
-  const orgId = req.headers['x-org-id'] as string;
-  if (!orgId) throw new AppError('Missing x-org-id header', 400);
+healthRouter.get('/:partnerId', async (req: AuthenticatedRequest, res: Response) => {
+  const orgId = req.auth?.orgId;
+  if (!orgId) throw new AppError('Unauthorized', 401);
 
   const score = await computeHealthScore(orgId, req.params.partnerId);
   return res.json({ ...score, partner_id: req.params.partnerId, org_id: orgId });
@@ -19,9 +20,9 @@ healthRouter.get('/:partnerId', async (req: Request, res: Response) => {
 
 // ─── POST /health-scores/batch ────────────────────────────
 // Recompute health for all partners in org (called by cron)
-healthRouter.post('/batch', async (req: Request, res: Response) => {
-  const orgId = req.headers['x-org-id'] as string;
-  if (!orgId) throw new AppError('Missing x-org-id header', 400);
+healthRouter.post('/batch', async (req: AuthenticatedRequest, res: Response) => {
+  const orgId = req.auth?.orgId;
+  if (!orgId) throw new AppError('Unauthorized', 401);
 
   const { partner_ids } = req.body as { partner_ids: string[] };
   if (!Array.isArray(partner_ids) || partner_ids.length === 0)

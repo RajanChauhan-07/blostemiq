@@ -5,20 +5,50 @@ import { io, Socket } from 'socket.io-client';
 import { useNotificationStore } from '../../stores/notificationStore';
 
 
-const WS_URL = process.env.NEXT_PUBLIC_WS_URL || 'http://localhost:3004';
-
 let socket: Socket | null = null;
 
-export function useRealtimeAlerts(orgId: string) {
+function getSocketTarget() {
+  const wsUrl = process.env.NEXT_PUBLIC_WS_URL;
+
+  if (!wsUrl || wsUrl === '/ws') {
+    return { url: undefined, path: '/ws/socket.io' };
+  }
+
+  try {
+    const parsed = new URL(wsUrl);
+    const basePath = parsed.pathname && parsed.pathname !== '/'
+      ? parsed.pathname.replace(/\/$/, '')
+      : '';
+
+    return {
+      url: parsed.origin,
+      path: `${basePath || ''}/socket.io`,
+    };
+  } catch {
+    return { url: wsUrl, path: '/socket.io' };
+  }
+}
+
+export function useRealtimeAlerts(orgId?: string | null, accessToken?: string | null) {
   const addNotification = useNotificationStore(s => s.add);
   const setConnected    = useNotificationStore(s => s.setConnected);
   const socketRef       = useRef<Socket | null>(null);
 
   const connect = useCallback(() => {
+    if (!orgId || !accessToken) {
+      socketRef.current?.disconnect();
+      socketRef.current = null;
+      setConnected(false);
+      return;
+    }
+
     if (socketRef.current?.connected) return;
 
-    socket = io(WS_URL, {
-      query: { orgId },
+    const target = getSocketTarget();
+
+    socket = io(target.url, {
+      auth: { token: accessToken },
+      path: target.path,
       transports: ['websocket', 'polling'],
       reconnection: true,
       reconnectionDelay: 1000,
@@ -104,15 +134,16 @@ export function useRealtimeAlerts(orgId: string) {
       useNotificationStore.getState().updateHealthScore(payload);
     });
 
-  }, [orgId, addNotification, setConnected]);
+  }, [accessToken, addNotification, orgId, setConnected]);
 
   useEffect(() => {
     connect();
     return () => {
       socketRef.current?.disconnect();
+      setConnected(false);
       socketRef.current = null;
     };
-  }, [connect]);
+  }, [connect, setConnected]);
 
   return { socket: socketRef.current };
 }

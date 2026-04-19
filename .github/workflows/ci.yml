@@ -9,7 +9,7 @@ on:
 env:
   AWS_REGION: us-east-1
   ECR_REGISTRY: 279867549867.dkr.ecr.us-east-1.amazonaws.com
-  EKS_CLUSTER: blostemiq-cluster
+  EKS_CLUSTER: blostemiq-dev
   NAMESPACE: blostemiq
 
 permissions:
@@ -42,6 +42,26 @@ jobs:
           npm ci
           npm run build
 
+      - name: Auth Service — Install & Build
+        working-directory: backend/auth-service
+        run: |
+          npm ci
+          npm run db:generate
+          npm run build
+
+      - name: Partner Service — Install & Build
+        working-directory: backend/partner-service
+        run: |
+          npm ci
+          npx prisma generate
+          npm run build
+
+      - name: Notification Service — Install & Build
+        working-directory: backend/notification-service
+        run: |
+          npm ci
+          npm run build
+
       - name: ML Service — Lint
         working-directory: backend/ml-service
         run: |
@@ -60,19 +80,37 @@ jobs:
           pip install -r requirements.txt
           python -c "from src.main import app; print('✅ Outreach Service imports OK')"
 
+      - name: Analytics Service — Lint
+        working-directory: backend/analytics-service
+        run: |
+          pip install -r requirements.txt
+          python -c "from src.main import app; print('✅ Analytics Service imports OK')"
+
+      - name: Report Service — Lint
+        working-directory: backend/report-service
+        run: |
+          pip install -r requirements.txt
+          python -c "from src.main import app; print('✅ Report Service imports OK')"
+
   # ─── Docker Build & Push ─────────────────────────
   build-and-push:
     name: Build & Push to ECR
     needs: lint-and-build
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push' && secrets.AWS_ROLE_ARN != ''
     runs-on: ubuntu-latest
     strategy:
       matrix:
         service:
           - { name: frontend, path: frontend, ecr: blostemiq-frontend }
+          - { name: auth-service, path: backend/auth-service, ecr: blostemiq-auth-service }
+          - { name: partner-service, path: backend/partner-service, ecr: blostemiq-partner-service }
+          - { name: notification-service, path: backend/notification-service, ecr: blostemiq-notification-service }
           - { name: ml-service, path: backend/ml-service, ecr: blostemiq-ml-serving }
           - { name: lead-scoring, path: backend/lead-scoring-service, ecr: blostemiq-lead-scoring }
           - { name: outreach, path: backend/outreach-service, ecr: blostemiq-outreach }
+          - { name: analytics-service, path: backend/analytics-service, ecr: blostemiq-analytics }
+          - { name: report-service, path: backend/report-service, ecr: blostemiq-report }
+          - { name: billing-service, path: backend/billing-service, ecr: blostemiq-billing-service }
     steps:
       - uses: actions/checkout@v4
 
@@ -99,7 +137,7 @@ jobs:
   deploy:
     name: Deploy to EKS
     needs: build-and-push
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push' && secrets.AWS_ROLE_ARN != ''
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -124,6 +162,15 @@ jobs:
           
           helm upgrade --install frontend k8s/helm/frontend \
             --namespace $NAMESPACE --set "image.tag=$TAG" --set "image.pullPolicy=Always"
+
+          helm upgrade --install auth-service k8s/helm/auth-service \
+            --namespace $NAMESPACE --set "image.tag=$TAG" --set "image.pullPolicy=Always"
+
+          helm upgrade --install partner-service k8s/helm/partner-service \
+            --namespace $NAMESPACE --set "image.tag=$TAG" --set "image.pullPolicy=Always"
+
+          helm upgrade --install notification-service k8s/helm/notification-service \
+            --namespace $NAMESPACE --set "image.tag=$TAG" --set "image.pullPolicy=Always"
           
           helm upgrade --install ml-service k8s/helm/ml-service \
             --namespace $NAMESPACE --set "image.tag=$TAG" --set "image.pullPolicy=Always"
@@ -133,11 +180,26 @@ jobs:
           
           helm upgrade --install outreach-service k8s/helm/outreach-service \
             --namespace $NAMESPACE --set "image.tag=$TAG" --set "image.pullPolicy=Always"
+
+          helm upgrade --install analytics-service k8s/helm/analytics-service \
+            --namespace $NAMESPACE --set "image.tag=$TAG" --set "image.pullPolicy=Always"
+
+          helm upgrade --install report-service k8s/helm/report-service \
+            --namespace $NAMESPACE --set "image.tag=$TAG" --set "image.pullPolicy=Always"
+
+          helm upgrade --install billing-service k8s/helm/billing-service \
+            --namespace $NAMESPACE --set "image.tag=$TAG" --set "image.pullPolicy=Always"
           
           echo "✅ All services deployed with tag: $TAG"
 
       - name: Verify deployment
         run: |
           kubectl rollout status deployment/frontend -n $NAMESPACE --timeout=120s
+          kubectl rollout status deployment/auth-service -n $NAMESPACE --timeout=120s
+          kubectl rollout status deployment/partner-service -n $NAMESPACE --timeout=120s
+          kubectl rollout status deployment/notification-service -n $NAMESPACE --timeout=120s
           kubectl rollout status deployment/ml-service -n $NAMESPACE --timeout=120s
+          kubectl rollout status deployment/analytics-service -n $NAMESPACE --timeout=120s
+          kubectl rollout status deployment/report-service -n $NAMESPACE --timeout=120s
+          kubectl rollout status deployment/billing-service -n $NAMESPACE --timeout=120s
           kubectl get pods -n $NAMESPACE

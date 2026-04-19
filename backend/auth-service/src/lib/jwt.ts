@@ -4,7 +4,15 @@ import { prisma } from './prisma';
 import { createHash } from 'crypto';
 import { AppError } from './errors';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'blostemiq-hackathon-super-secret-key';
+function getJwtSecret(): string {
+  const secret = process.env.JWT_SECRET;
+  if (!secret) {
+    throw new Error('JWT_SECRET environment variable is required');
+  }
+  return secret;
+}
+
+const JWT_SECRET = getJwtSecret();
 
 const ACCESS_TOKEN_TTL = '15m';
 const REFRESH_TOKEN_TTL_DAYS = 30;
@@ -15,6 +23,16 @@ interface TokenPayload {
   role: string;
   type: 'access' | 'refresh';
   family?: string;
+}
+
+export interface AccessTokenPayload {
+  sub: string;
+  orgId: string;
+  role: 'admin' | 'analyst' | 'viewer';
+  type: 'access';
+  iat?: number;
+  exp?: number;
+  iss?: string;
 }
 
 export async function generateTokens(
@@ -103,3 +121,23 @@ export async function revokeRefreshToken(rawToken: string) {
   });
 }
 
+export function verifyAccessToken(token: string): AccessTokenPayload {
+  const payload = jwt.verify(token, JWT_SECRET, {
+    algorithms: ['HS256'],
+    issuer: 'blostemiq-auth',
+  }) as jwt.JwtPayload;
+
+  if (payload.type !== 'access' || !payload.sub || !payload.orgId || !payload.role) {
+    throw new AppError('Invalid access token', 401);
+  }
+
+  return {
+    sub: payload.sub,
+    orgId: payload.orgId,
+    role: payload.role as AccessTokenPayload['role'],
+    type: 'access',
+    iat: payload.iat,
+    exp: payload.exp,
+    iss: payload.iss,
+  };
+}
