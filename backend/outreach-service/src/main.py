@@ -214,11 +214,7 @@ async def get_auth_context(
 
 @app.on_event("startup")
 async def startup():
-    if DATABASE_URL:
-        try:
-            await get_db()
-        except Exception as exc:
-            logger.warning("Database warm-up failed at startup; continuing without eager connection: %s", exc)
+    return None
 
 
 async def record_audit_log(org_id: str, user_id: str, action: str, resource: str, resource_id: Optional[str], metadata: dict[str, Any]):
