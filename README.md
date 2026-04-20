@@ -1,132 +1,278 @@
 # BlostemIQ
 
-> **B2B SaaS Intelligence Platform for Fintech Infrastructure**
-> Real-time partner health · AI churn prediction · Compliance-aware outreach · ElevenLabs voice briefings
+BlostemIQ is a multi-tenant B2B SaaS platform for the Blostem team to track partner health, predict churn, score leads, generate outreach, export reports, manage organizations, and operate a real product on AWS.
 
----
+Live website: `https://blostemiq.myddns.me`
 
-## 📁 Project Structure
+## What This Product Does
 
-```
+BlostemIQ gives partnership, growth, and operations teams one place to:
+
+- onboard and manage partners
+- ingest partner activity and health signals
+- monitor retention, health, and trend analytics
+- score leads and predict churn risk
+- generate compliance-aware outreach
+- manage team members, roles, billing, and audit history
+- export reports for internal and customer-facing use
+
+In plain terms: it turns fragmented partner ops into a single SaaS control plane.
+
+## Core SaaS Features
+
+- Multi-tenant organization workspaces
+- Sign up, sign in, session refresh, sign out
+- Role-aware org membership and invite flows
+- Partner CRUD
+- CSV partner import
+- Org API key creation and revocation
+- Partner event ingestion
+- Real analytics dashboards
+- Cohorts, retention, health trends, and activity snapshots
+- Lead scoring
+- Churn prediction
+- AI-assisted outreach drafting
+- Outreach sequence saving and sending
+- Voice briefing support
+- PDF report export
+- Billing and plan scaffolding
+- Audit logging
+- Rate limiting and tenant-aware authorization
+
+## How This Helps The Blostem Team In Real Life
+
+- Sales and partnerships get a live view of which partners need attention.
+- Customer success gets early warning when partner health starts dropping.
+- Leadership gets one dashboard instead of chasing updates across spreadsheets and chats.
+- Ops can import partner data, search it, and act on it quickly.
+- Outreach becomes faster and more consistent because teams can generate, save, and send sequences from the same workflow.
+- Reporting is faster because the platform can generate tenant-specific exports and PDFs directly from live data.
+- Billing, roles, audit, and workspace controls make it much closer to a real SaaS product than a demo app.
+
+## Product Workflow
+
+1. A user signs up and creates or joins an organization.
+2. The org creates partners manually or imports them by CSV.
+3. Partners send activity or event data through ingestion endpoints or API keys.
+4. The platform stores and aggregates partner activity into operational metrics and snapshots.
+5. Analytics surfaces health, trends, retention, and partner movement.
+6. Lead scoring and prediction services turn raw partner signals into prioritized action.
+7. Outreach workflows help the team generate and send contextual follow-up.
+8. Reports, audit logs, and settings support ongoing team operations.
+
+## Architecture
+
+BlostemIQ uses a microservice-style architecture with a Next.js frontend, Node.js and Python backend services, PostgreSQL as the main system of record, Redis/Kafka for event and realtime flows, and AWS for deployment.
+
+High-level request path:
+
+1. User opens the web app in the browser.
+2. Frontend talks to backend services through same-origin `/api` and `/ws` routes.
+3. Auth validates identity, session, org, and role.
+4. Domain services handle partners, analytics, billing, notifications, outreach, reporting, ML, and lead scoring.
+5. PostgreSQL stores persistent tenant data.
+6. Notification service pushes live alerts over WebSockets.
+7. AWS EKS runs the deployed containers behind ingress/load balancers.
+
+## Services Used
+
+### Frontend
+
+- `frontend` - Next.js 14 app router UI for auth, dashboard, partners, analytics, outreach, leads, predict, settings, and reporting
+
+### Node.js services
+
+- `auth-service` - authentication, org management, invites, membership, entitlements, audit-related flows
+- `partner-service` - partner CRUD, CSV import, API keys, ingestion endpoints, partner metrics/event writes
+- `notification-service` - realtime alerts and websocket delivery
+- `billing-service` - billing plans, subscriptions, Stripe checkout/portal/webhook handling
+
+### Python services
+
+- `analytics-service` - health scoring, retention, trend, snapshot, and cohort analytics
+- `ml-service` - churn prediction logic
+- `lead-scoring-service` - lead qualification and scoring
+- `outreach-service` - outreach classification, generation, sequence persistence, send path, sender settings
+- `report-service` - PDF report generation from live tenant data
+
+### Data and platform services
+
+- PostgreSQL - primary relational data store
+- Redis - caching/pubsub support
+- Kafka - event streaming and async pipelines
+- Docker Compose - full local stack orchestration
+- Helm - Kubernetes release management
+- ECR - image registry
+- EKS - container runtime on AWS
+- RDS - managed PostgreSQL on AWS
+- NGINX Ingress - routing into the cluster
+
+### External integrations
+
+- Stripe - billing
+- Groq - outreach generation
+- ElevenLabs - voice briefing
+- Google OAuth - social auth
+- SMTP / SES-compatible delivery - outbound email
+
+## Tech Stack
+
+### Frontend
+
+- Next.js 14
+- React 18
+- TypeScript
+- Tailwind CSS
+- Zustand
+- TanStack Query
+- Recharts
+- D3
+- Framer Motion
+- Socket.IO client
+
+### Backend
+
+- Node.js
+- Express
+- TypeScript
+- FastAPI
+- Python 3.11
+- Prisma
+- asyncpg
+- JWT auth
+
+### Data / messaging / infra
+
+- PostgreSQL
+- Redis
+- Kafka
+- Docker
+- Docker Compose
+- Kubernetes
+- Helm
+- AWS EKS
+- AWS ECR
+- AWS RDS
+
+### ML / AI / document generation
+
+- NumPy
+- scikit-learn
+- XGBoost
+- ReportLab
+- Groq API
+- ElevenLabs API
+
+## Project Layout
+
+```text
 blostemiq/
-│
-├── 🖥️  frontend/                     # Next.js 14 — The web app judges see
-│   ├── app/                          # App Router pages
-│   │   ├── (auth)/                   # Login, signup, org creation
-│   │   ├── dashboard/                # Main partner health dashboard
-│   │   ├── partners/                 # Partner list + detail pages
-│   │   ├── outreach/                 # AI email composer
-│   │   ├── analytics/                # Cohort heatmaps, funnels
-│   │   └── settings/                 # Org settings, team, billing
-│   ├── components/                   # Reusable UI components
-│   ├── lib/                          # API clients, hooks, utilities
-│   └── styles/                       # Global CSS + design tokens
-│
-├── 🔧  backend/                      # All backend microservices
-│   ├── auth-service/                 # Node.js — JWT, OAuth, org provisioning
-│   ├── partner-service/              # Node.js — Partner CRUD, event ingestion
-│   ├── notification-service/         # Node.js — WebSocket, real-time alerts
-│   ├── billing-service/              # Node.js — Stripe subscriptions
-│   ├── search-service/               # Node.js — OpenSearch full-text + vector
-│   └── python/
-│       ├── analytics-service/        # FastAPI — Metrics, cohorts, funnels
-│       ├── ml-serving/               # FastAPI — SageMaker inference + SHAP
-│       ├── outreach-service/         # FastAPI — Claude AI email generation
-│       ├── lead-scoring-service/     # FastAPI — XGBoost lead scoring
-│       └── report-engine/            # Python — PDF reports, SES delivery
-│
-├── 🗄️  database/                     # Everything data-related
+├── frontend/                  # Next.js web app
+├── backend/
+│   ├── auth-service/          # Auth, orgs, members, entitlements
+│   ├── partner-service/       # Partners, ingestion, API keys, CSV import
+│   ├── notification-service/  # Websocket alerts
+│   ├── billing-service/       # Billing and subscriptions
+│   ├── analytics-service/     # Analytics and cohorts
+│   ├── ml-service/            # Churn prediction
+│   ├── lead-scoring-service/  # Lead scoring
+│   ├── outreach-service/      # Outreach generation and delivery
+│   └── report-service/        # PDF report generation
+├── database/
+│   ├── migrations/
 │   ├── schemas/
-│   │   └── init-db.sql               # PostgreSQL schema (all 6 tables)
-│   ├── migrations/                   # Prisma migration files
-│   └── seeds/                        # Demo data (30 partners, 12mo history)
-│
-├── 🤖  ml/                           # Machine learning
+│   └── seeds/
+├── ml/
+│   ├── data/
 │   ├── models/
-│   │   ├── churn/                    # XGBoost churn predictor
-│   │   ├── lead-scoring/             # XGBoost lead scorer
-│   │   └── outreach-classifier/      # Template type classifier
-│   ├── pipelines/                    # Feature refresh + retrain DAGs
-│   └── data/                         # Synthetic datasets (DVC versioned)
-│
-├── ☁️  infra/
+│   └── pipelines/
+├── infra/
+│   ├── scripts/
 │   └── terraform/
-│       ├── modules/
-│       │   ├── vpc/                  # Network foundation
-│       │   ├── eks/                  # Kubernetes cluster
-│       │   ├── rds/                  # PostgreSQL on AWS
-│       │   ├── elasticache/          # Redis on AWS
-│       │   ├── s3/                   # 4 storage buckets
-│       │   ├── ecr/                  # Container image registries
-│       │   ├── dynamodb/             # 3 event tables
-│       │   └── iam/                  # Roles, IRSA, GitHub OIDC
-│       └── environments/
-│           └── dev/                  # Dev environment (terraform apply here)
-│
-├── ⚙️  k8s/
-│   └── helm/                         # Helm charts for EKS deployments
-│
-├── 🔄  .github/
-│   └── workflows/
-│       └── ci.yml                    # CI/CD: test → build → push ECR → deploy EKS
-│
-├── 🛠️  scripts/
-│   ├── init-db.sql                   # Run once to setup Postgres schema
-│   ├── localstack-init.sh            # Boots fake AWS locally
-│   └── cost-control.sh               # Scale EKS up/down, check AWS spend
-│
-└── docker-compose.yml                # Starts EVERYTHING locally (1 command)
+├── k8s/
+│   ├── base/
+│   ├── helm/
+│   └── ssl/
+├── scripts/
+├── docker-compose.yml
+└── REAL_SAAS_IMPLEMENTATION_GUIDE.md
 ```
 
----
+## Local Development
 
-## 🚀 Start Local Dev (1 Command)
+### Start the full stack
 
 ```bash
-# Fresh local DBs auto-run database/schemas/init-db.sql on first boot.
-# For an existing database, you can also run:
-# DATABASE_URL=postgresql://... npm run db:bootstrap
 docker compose up --build
 ```
 
-**What starts:**
-
-| Service | URL | What it is |
-|---|---|---|
-| Frontend (Next.js) | http://localhost:3000 | The web app |
-| Kong API Gateway | http://localhost:8000 | All API calls go through here |
-| Auth Service | http://localhost:3001 | Login / signup |
-| Partner Service | http://localhost:3002 | Partner data |
-| Notification WS | ws://localhost:3004 | Real-time alerts |
-| Kafka UI | http://localhost:8080 | View event streams |
-| OpenSearch | http://localhost:9200 | Search + vector index |
-| MLflow | http://localhost:5001 | ML experiment tracking |
-| LocalStack | http://localhost:4566 | Fake AWS (S3, DynamoDB, etc.) |
-
----
-
-## ☁️ Deploy to AWS
+### Useful commands
 
 ```bash
-cd infra/terraform/environments/dev
-terraform init
-terraform plan   # FREE — just shows what will be created
-terraform apply  # Creates real AWS resources (~$1.50/day)
+npm run dev
+npm run db:bootstrap
+npm run db:retention
+npm run smoke:local
+npm run test
+npm run lint
 ```
 
----
+### Main local URLs
 
-## 💰 AWS Cost Control
+| Service | URL |
+|---|---|
+| Frontend | `http://localhost:3000` |
+| Auth Service | `http://localhost:3001` |
+| Partner Service | `http://localhost:3002` |
+| Notification Service | `http://localhost:3004` |
+| Analytics Service | `http://localhost:8004` |
+| Outreach Service | `http://localhost:8003` |
+| Report Service | `http://localhost:8005` |
+| Billing Service | `http://localhost:3005` |
+
+## Deployment Model
+
+- Source code is stored in GitHub.
+- Containers are built and pushed to AWS ECR.
+- Helm charts deploy the services into AWS EKS.
+- Ingress/load balancers expose the frontend and routed APIs.
+- Secrets are injected into services at runtime.
+
+## SaaS Operational Features
+
+- tenant-aware auth and org isolation
+- role-based access patterns
+- plan and entitlement enforcement
+- audit logging
+- rate limiting
+- realtime notifications
+- export/delete workspace controls
+- deployment and smoke-test workflows
+
+## Current Product Notes
+
+- Core app flows are liveable and tested across auth, dashboard, partners, analytics, search, leads, predict, settings, reporting, and outreach persistence.
+- Some provider-backed capabilities still depend on live external credentials and production policy setup, especially billing completion, outbound email delivery, and some third-party auth paths.
+
+## Cost Control
+
+To reduce AWS compute cost when the team is not using the system:
 
 ```bash
-./scripts/cost-control.sh down    # Scale EKS to 0 (save money at night)
-./scripts/cost-control.sh up      # Scale EKS back to 1 node
-./scripts/cost-control.sh spend   # Check how much you've spent this month
-./scripts/cost-control.sh stop-ml # Delete SageMaker endpoints
+./scripts/cost-control.sh down
+./scripts/cost-control.sh up
+./scripts/cost-control.sh spend
+./scripts/cost-control.sh stop-ml
 ```
 
----
+`down` scales the EKS node group to zero. `up` brings it back.
 
-## 🏆 Blostem AI Builder Hackathon — Demo: May 9 @ Noida HQ
+## Why This Matters
 
-**Judging criteria:** Relevance (25%) · Technical Execution (25%) · Innovation (20%) · Demo (20%) · Scale (10%)
+BlostemIQ is not just a dashboard. It is the operating layer that helps the Blostem team:
+
+- protect partner revenue
+- act before churn happens
+- prioritize the right accounts
+- move faster with fewer manual handoffs
+- create a repeatable SaaS workflow around partner growth and retention
